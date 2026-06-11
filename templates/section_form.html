@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% set all_projects = [project] %}
+{% set stype = stype or (section.stype if section else 'url') %}
+{% block title %}{{ 'Edit Section' if section else 'Add Section' }} — SM Vault{% endblock %}
+{% block topbar %}
+<div class="topbar">
+  <div class="breadcrumb">
+    <a href="{{ url_for('home') }}">Dashboard</a><span class="breadcrumb-sep">›</span>
+    <a href="{{ url_for('project_detail', pid=project.id) }}">{{ project.name }}</a><span class="breadcrumb-sep">›</span>
+    <a href="{{ url_for('site_detail', pid=project.id, sid=site.id) }}">{{ site.name }}</a><span class="breadcrumb-sep">›</span>
+    <span>{{ 'Edit Section' if section else 'Add Section' }}</span>
+  </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="content">
+<div class="form-wrap" style="max-width:720px">
+  <div class="card">
+    <div class="card-header">
+      <span style="font-size:18px">
+        {% if stype=='url' %}🔗{% elif stype=='server' %}🖥️{% elif stype=='database' %}🗄️{% elif stype=='credentials' %}🔑{% else %}📋{% endif %}
+      </span>
+      <h3>{{ 'Edit' if section else 'Add' }} — {{ {'url':'URL / Links','server':'Server Details','database':'Database Config','credentials':'Credentials','custom':'Custom Key-Value'}.get(stype,stype) }}</h3>
+    </div>
+    <div class="card-body">
+    <form method="POST" id="section-form">
+      <input type="hidden" name="stype" value="{{ stype }}">
+      <div class="form-row">
+        <label>Section Title</label>
+        <input type="text" name="title" value="{{ section.title if section else '' }}" placeholder="e.g. Application URLs, Primary DB, Admin Credentials">
+      </div>
+
+      {# ── URL SECTION ── #}
+      {% if stype == 'url' %}
+      <div class="form-section">
+        <div class="form-section-title">URL Entries</div>
+        <div id="url-list">
+          {% set entries = data.get('entries', []) %}
+          {% if entries %}{% for e in entries %}
+          <div class="url-entry-row" style="display:grid;grid-template-columns:1fr 2fr 1fr auto;gap:8px;margin-bottom:8px;align-items:start">
+            <div><input type="text" name="url_label" value="{{ e.label }}" placeholder="Label"></div>
+            <div><input type="text" name="url_value" value="{{ e.url }}" placeholder="https://…" required></div>
+            <div><input type="text" name="url_desc" value="{{ e.desc }}" placeholder="Description"></div>
+            <button type="button" class="remove-row-btn" onclick="removeRow(this)">✕</button>
+          </div>
+          {% endfor %}{% else %}
+          <div class="url-entry-row" style="display:grid;grid-template-columns:1fr 2fr 1fr auto;gap:8px;margin-bottom:8px;align-items:start">
+            <div><input type="text" name="url_label" placeholder="Label e.g. Admin UI"></div>
+            <div><input type="text" name="url_value" placeholder="https://…"></div>
+            <div><input type="text" name="url_desc" placeholder="Description"></div>
+            <button type="button" class="remove-row-btn" onclick="removeRow(this)">✕</button>
+          </div>
+          {% endif %}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;font-size:11px;color:var(--c-text3);padding:2px 0">
+          <span style="flex:1">Label</span><span style="flex:2">URL *</span><span style="flex:1">Description</span><span style="width:26px"></span>
+        </div>
+        <button type="button" class="add-row-btn" onclick="addUrlRow()">+ Add URL</button>
+      </div>
+
+      {# ── SERVER SECTION ── #}
+      {% elif stype == 'server' %}
+      <div class="form-section">
+        <div class="form-section-title">Server Information</div>
+        <div class="grid-2">
+          <div class="form-row"><label>Hostname</label><input type="text" name="hostname" value="{{ data.get('hostname','') }}" placeholder="server01.internal"></div>
+          <div class="form-row"><label>IP Address</label><input type="text" name="ip" value="{{ data.get('ip','') }}" placeholder="10.0.0.1"></div>
+          <div class="form-row"><label>OS / Platform</label><input type="text" name="os" value="{{ data.get('os','') }}" placeholder="RHEL 8.6 / Windows Server 2019"></div>
+          <div class="form-row"><label>Version</label><input type="text" name="version" value="{{ data.get('version','') }}" placeholder="e.g. MAS 8.11"></div>
+          <div class="form-row"><label>CPU</label><input type="text" name="cpu" value="{{ data.get('cpu','') }}" placeholder="e.g. 16 vCPU"></div>
+          <div class="form-row"><label>RAM</label><input type="text" name="ram" value="{{ data.get('ram','') }}" placeholder="e.g. 64 GB"></div>
+          <div class="form-row"><label>Disk / Storage</label><input type="text" name="disk" value="{{ data.get('disk','') }}" placeholder="e.g. 500 GB SSD"></div>
+          <div class="form-row"><label>Location / DC</label><input type="text" name="location" value="{{ data.get('location','') }}" placeholder="e.g. Brisbane DC Rack 3"></div>
+        </div>
+        <div class="form-row"><label>Notes</label><textarea name="notes" placeholder="Any additional server notes…">{{ data.get('notes','') }}</textarea></div>
+      </div>
+
+      {# ── DATABASE SECTION ── #}
+      {% elif stype == 'database' %}
+      <div class="form-section">
+        <div class="form-section-title">Database Configuration</div>
+        <div class="grid-2">
+          <div class="form-row"><label>DB Type</label>
+            <select name="db_type">
+              <option value="">— Select —</option>
+              {% for t in ['Oracle','PostgreSQL','MySQL','MSSQL','SQLite','MongoDB','DB2','Other'] %}
+              <option value="{{ t }}" {{ 'selected' if data.get('db_type')==t }}>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-row"><label>Host / Server</label><input type="text" name="host" value="{{ data.get('host','') }}" placeholder="db01.internal"></div>
+          <div class="form-row"><label>Port</label><input type="text" name="port" value="{{ data.get('port','') }}" placeholder="1521"></div>
+          <div class="form-row"><label>SID / Service Name</label><input type="text" name="sid" value="{{ data.get('sid','') }}" placeholder="ORCL"></div>
+          <div class="form-row"><label>Schema / Database</label><input type="text" name="schema" value="{{ data.get('schema','') }}" placeholder="MAXIMO"></div>
+          <div class="form-row"><label>Version</label><input type="text" name="version" value="{{ data.get('version','') }}" placeholder="Oracle 19c"></div>
+        </div>
+        <div class="form-row"><label>Notes</label><textarea name="notes" placeholder="Connection strings, notes, backup schedules…">{{ data.get('notes','') }}</textarea></div>
+      </div>
+
+      {# ── CREDENTIALS SECTION ── #}
+      {% elif stype == 'credentials' %}
+      <div class="form-section">
+        <div class="form-section-title">Credential Entries</div>
+        <div id="cred-list">
+          {% set entries = data.get('entries', []) %}
+          {% if entries %}{% for e in entries %}
+          <div class="cred-entry-row" style="background:var(--c-surface2);border:1px solid var(--c-border);border-radius:var(--rm);padding:12px 14px;margin-bottom:10px">
+            <div class="grid-2" style="margin-bottom:8px">
+              <div class="form-row" style="margin:0"><label>Label</label><input type="text" name="cred_label" value="{{ e.label }}" placeholder="e.g. App Admin"></div>
+              <div class="form-row" style="margin:0"><label>Note</label><input type="text" name="cred_note" value="{{ e.note }}" placeholder="Optional note"></div>
+            </div>
+            <div class="grid-2">
+              <div class="form-row" style="margin:0"><label>Username</label><input type="text" name="cred_user" value="{{ e.username }}" placeholder="username" autocomplete="off"></div>
+              <div class="form-row" style="margin:0"><label>Password</label>
+                <div class="pwd-wrap"><input type="password" name="cred_pwd" value="{{ e.password }}" placeholder="password" autocomplete="new-password" id="cpwd-{{ loop.index }}">
+                <button type="button" class="pwd-eye" onclick="togglePwdInput('cpwd-{{ loop.index }}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="8" rx="6" ry="4"/><circle cx="8" cy="8" r="1.5"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div style="text-align:right;margin-top:8px"><button type="button" onclick="removeRow(this)" class="btn btn-xs btn-danger">Remove</button></div>
+          </div>
+          {% endfor %}{% else %}
+          <div class="cred-entry-row" style="background:var(--c-surface2);border:1px solid var(--c-border);border-radius:var(--rm);padding:12px 14px;margin-bottom:10px">
+            <div class="grid-2" style="margin-bottom:8px">
+              <div class="form-row" style="margin:0"><label>Label</label><input type="text" name="cred_label" placeholder="e.g. App Admin"></div>
+              <div class="form-row" style="margin:0"><label>Note</label><input type="text" name="cred_note" placeholder="Optional note"></div>
+            </div>
+            <div class="grid-2">
+              <div class="form-row" style="margin:0"><label>Username</label><input type="text" name="cred_user" placeholder="username" autocomplete="off"></div>
+              <div class="form-row" style="margin:0"><label>Password</label>
+                <div class="pwd-wrap"><input type="password" name="cred_pwd" placeholder="password" autocomplete="new-password" id="cpwd-new1">
+                <button type="button" class="pwd-eye" onclick="togglePwdInput('cpwd-new1')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="8" rx="6" ry="4"/><circle cx="8" cy="8" r="1.5"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div style="text-align:right;margin-top:8px"><button type="button" onclick="removeRow(this)" class="btn btn-xs btn-danger">Remove</button></div>
+          </div>
+          {% endif %}
+        </div>
+        <button type="button" class="add-row-btn" onclick="addCredRow()">+ Add Credential</button>
+      </div>
+
+      {# ── CUSTOM SECTION ── #}
+      {% elif stype == 'custom' %}
+      <div class="form-section">
+        <div class="form-section-title">Custom Key-Value Pairs</div>
+        <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin-bottom:6px;font-size:11px;color:var(--c-text3);padding:2px 0">
+          <span>Key / Label</span><span>Value</span><span></span>
+        </div>
+        <div class="kv-list" id="kv-list">
+          {% set pairs = data.get('pairs', []) %}
+          {% if pairs %}{% for p in pairs %}
+          <div class="kv-row">
+            <input type="text" name="kv_key" value="{{ p.key }}" placeholder="Key">
+            <input type="text" name="kv_val" value="{{ p.value }}" placeholder="Value">
+            <button type="button" class="remove-row-btn" onclick="removeRow(this)">✕</button>
+          </div>
+          {% endfor %}{% else %}
+          <div class="kv-row"><input type="text" name="kv_key" placeholder="Key"><input type="text" name="kv_val" placeholder="Value"><button type="button" class="remove-row-btn" onclick="removeRow(this)">✕</button></div>
+          {% endif %}
+        </div>
+        <button type="button" class="add-row-btn" onclick="addKVRow()">+ Add Row</button>
+      </div>
+      {% endif %}
+
+      <div class="form-foot">
+        <a href="{{ url_for('site_detail', pid=project.id, sid=site.id) }}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if section else 'Add Section' }}</button>
+      </div>
+    </form>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let credCount = {{ (data.get('entries',[])|length) if section else 1 }};
+function addUrlRow(){
+  const c=document.getElementById('url-list');
+  const d=document.createElement('div');
+  d.className='url-entry-row';
+  d.style.cssText='display:grid;grid-template-columns:1fr 2fr 1fr auto;gap:8px;margin-bottom:8px;align-items:start';
+  d.innerHTML='<div><input type="text" name="url_label" placeholder="Label"></div><div><input type="text" name="url_value" placeholder="https://…"></div><div><input type="text" name="url_desc" placeholder="Description"></div><button type="button" class="remove-row-btn" onclick="removeRow(this)">✕</button>';
+  c.appendChild(d);
+}
+function addCredRow(){
+  credCount++;
+  const id='cpwd-dyn'+credCount;
+  const c=document.getElementById('cred-list');
+  const d=document.createElement('div');
+  d.className='cred-entry-row';
+  d.style.cssText='background:var(--c-surface2);border:1px solid var(--c-border);border-radius:var(--rm);padding:12px 14px;margin-bottom:10px';
+  d.innerHTML=`<div class="grid-2" style="margin-bottom:8px">
+    <div class="form-row" style="margin:0"><label>Label</label><input type="text" name="cred_label" placeholder="e.g. App Admin"></div>
+    <div class="form-row" style="margin:0"><label>Note</label><input type="text" name="cred_note" placeholder="Optional note"></div>
+  </div>
+  <div class="grid-2">
+    <div class="form-row" style="margin:0"><label>Username</label><input type="text" name="cred_user" placeholder="username" autocomplete="off"></div>
+    <div class="form-row" style="margin:0"><label>Password</label>
+      <div class="pwd-wrap"><input type="password" name="cred_pwd" placeholder="password" id="${id}">
+      <button type="button" class="pwd-eye" onclick="togglePwdInput('${id}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="8" rx="6" ry="4"/><circle cx="8" cy="8" r="1.5"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:right;margin-top:8px"><button type="button" onclick="removeRow(this)" class="btn btn-xs btn-danger">Remove</button></div>`;
+  c.appendChild(d);
+}
+function addKVRow(){
+  const c=document.getElementById('kv-list');
+  const d=document.createElement('div');
+  d.className='kv-row';
+  d.innerHTML='<input type="text" name="kv_key" placeholder="Key"><input type="text" name="kv_val" placeholder="Value"><button type="button" class="remove-row-btn" onclick="removeRow(this)">✕</button>';
+  c.appendChild(d);
+}
+</script>
+{% endblock %}

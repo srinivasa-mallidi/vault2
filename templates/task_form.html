@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% set all_projects = projects %}
+{% block title %}{{ 'Edit Task' if task else 'New Task' }} — SM Vault{% endblock %}
+
+{% block topbar %}
+<div class="topbar">
+  <div class="breadcrumb" style="flex:1">
+    <a href="{{ url_for('tasks') }}">To-Do Tasks</a>
+    <span class="breadcrumb-sep">›</span>
+    <span>{{ 'Edit Task' if task else 'New Task' }}</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="content">
+<div class="form-wrap" style="max-width:580px">
+  <div class="card">
+    <div class="card-header">
+      <span style="font-size:18px">{{ '✏️' if task else '➕' }}</span>
+      <h3>{{ 'Edit Task' if task else 'New Task' }}</h3>
+    </div>
+    <div class="card-body">
+    <form method="POST">
+
+      <div class="form-row">
+        <label>Task Title *</label>
+        <input type="text" name="title" value="{{ task.title if task else '' }}"
+          placeholder="What needs to be done?" required autofocus>
+      </div>
+
+      <div class="form-row">
+        <label>Description</label>
+        <textarea name="description" placeholder="More details, steps, context…">{{ task.description if task else '' }}</textarea>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-row">
+          <label>Status</label>
+          <select name="status">
+            {% for sv, slabel in [('open','🔵 Open'),('inprogress','🟡 In Progress'),('blocked','🔴 Blocked'),('closed','✅ Closed')] %}
+            <option value="{{ sv }}" {{ 'selected' if task and task.status==sv or (not task and sv=='open') }}>{{ slabel }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Priority</label>
+          <select name="priority">
+            {% for pv, plabel in [('critical','🔴 Critical'),('high','🟠 High'),('medium','🔵 Medium'),('low','🟢 Low')] %}
+            <option value="{{ pv }}" {{ 'selected' if task and task.priority==pv or (not task and pv=='medium') }}>{{ plabel }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-row">
+          <label>Project (optional)</label>
+          <select name="project_id">
+            <option value="">— No project —</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}"
+              {{ 'selected' if (task and task.project_id==p.id) or (not task and preselect==p.id|string) }}>
+              {{ p.icon }} {{ p.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Due Date (optional)</label>
+          <input type="date" name="due_date" value="{{ task.due_date if task and task.due_date else '' }}">
+        </div>
+      </div>
+
+      <div class="form-foot">
+        <a href="{{ url_for('tasks') }}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if task else 'Create Task' }}</button>
+      </div>
+    </form>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

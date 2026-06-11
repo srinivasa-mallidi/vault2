@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% set all_projects = [project] %}
+{% block title %}{{ 'Edit Site' if site else 'New Site' }} — SM Vault{% endblock %}
+{% block topbar %}
+<div class="topbar">
+  <div class="breadcrumb">
+    <a href="{{ url_for('home') }}">Dashboard</a><span class="breadcrumb-sep">›</span>
+    <a href="{{ url_for('project_detail', pid=project.id) }}">{{ project.name }}</a><span class="breadcrumb-sep">›</span>
+    <span>{{ 'Edit Site' if site else 'New Site' }}</span>
+  </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="content">
+<div class="form-wrap">
+  <div class="card">
+    <div class="card-header"><h3>{{ 'Edit Site' if site else 'New Site' }}</h3></div>
+    <div class="card-body">
+    <form method="POST">
+      <div class="grid-2">
+        <div class="form-row">
+          <label>Site Name *</label>
+          <input type="text" name="name" value="{{ site.name if site else '' }}" placeholder="e.g. Production, UAT, Dev" required autofocus>
+        </div>
+        <div class="form-row">
+          <label>Environment</label>
+          <select name="environment">
+            <option value="">— Select —</option>
+            {% for e in ['Production','UAT','Dev','Test','Staging'] %}
+            <option value="{{ e }}" {{ 'selected' if site and site.environment==e }}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Description</label>
+        <textarea name="description" placeholder="Brief description of this site…">{{ site.description if site else '' }}</textarea>
+      </div>
+      <div class="form-foot">
+        <a href="{{ url_for('site_detail', pid=project.id, sid=site.id) if site else url_for('project_detail', pid=project.id) }}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if site else 'Create Site' }}</button>
+      </div>
+    </form>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}

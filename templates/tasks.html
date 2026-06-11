@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% set all_projects = projects %}
+{% block title %}To-Do Tasks — SM Vault{% endblock %}
+
+{# MACRO must be defined before use #}
+{% macro render_task_card(t) %}
+{% set prio_map = {'critical':('#9e2020','#fde8e8','🔴'),
+                   'high':('#7c4a08','#faecd8','🟠'),
+                   'medium':('#1a5fa8','#e8f0fb','🔵'),
+                   'low':('#1e6b3a','#e4f2e9','🟢')} %}
+{% set stat_map = {'open':('Open','#1a5fa8','#e8f0fb'),
+                   'inprogress':('In Progress','#1e6b3a','#e4f2e9'),
+                   'blocked':('Blocked','#9e2020','#fde8e8'),
+                   'closed':('Closed','#5a5852','#f0eeeb')} %}
+{% set pc,pb,picon = prio_map.get(t.priority, ('#5a5852','#f0eeeb','⚪')) %}
+{% set slabel,sc,sb = stat_map.get(t.status, ('Open','#1a5fa8','#e8f0fb')) %}
+{% set is_closed = t.status == 'closed' %}
+{% set is_overdue = t.due_date and t.due_date < now_date and not is_closed %}
+
+<div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r);
+  padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05);
+  {% if is_closed %}opacity:.6;{% endif %}
+  {% if is_overdue %}border-left:3px solid #9e2020;{% endif %}">
+
+  <div style="display:flex;align-items:flex-start;gap:12px">
+    <!-- Status circle button -->
+    <div style="position:relative;flex-shrink:0;margin-top:2px" class="status-dropdown-wrap">
+      <button type="button" onclick="toggleStatusMenu({{ t.id }})"
+        style="width:28px;height:28px;border-radius:50%;border:2px solid {{ sc }};
+        background:{{ sb }};cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center"
+        title="Change status">
+        {% if t.status=='open' %}○{% elif t.status=='inprogress' %}◑{% elif t.status=='blocked' %}✕{% else %}✓{% endif %}
+      </button>
+      <div id="smenu-{{ t.id }}" style="display:none;position:absolute;left:0;top:34px;
+        background:var(--c-surface);border:1px solid var(--c-border2);border-radius:var(--rs);
+        box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:200;min-width:160px;overflow:hidden">
+        {% for sv,slbl,sco,sbg in [
+          ('open','Open','#1a5fa8','#e8f0fb'),
+          ('inprogress','In Progress','#1e6b3a','#e4f2e9'),
+          ('blocked','Blocked','#9e2020','#fde8e8'),
+          ('closed','Closed','#5a5852','#f0eeeb')
+        ] %}
+        <form method="POST" action="{{ url_for('task_status', tid=t.id) }}">
+          <input type="hidden" name="status" value="{{ sv }}">
+          <button type="submit"
+            style="width:100%;padding:9px 14px;text-align:left;border:none;cursor:pointer;
+            background:{% if t.status==sv %}{{ sbg }}{% else %}transparent{% endif %};
+            font-size:13px;color:{{ sco }};font-family:inherit;display:flex;align-items:center;gap:8px">
+            {% if sv=='open' %}○{% elif sv=='inprogress' %}◑{% elif sv=='blocked' %}✕{% else %}✓{% endif %}
+            {{ slbl }}{% if t.status==sv %} &nbsp;✓{% endif %}
+          </button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:5px">
+        <span style="font-size:14px;font-weight:600;{% if is_closed %}text-decoration:line-through;color:var(--c-text3);{% endif %}flex:1;min-width:0">{{ t.title }}</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;background:{{ pb }};color:{{ pc }};white-space:nowrap">{{ picon }} {{ t.priority.capitalize() }}</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600;background:{{ sb }};color:{{ sc }};white-space:nowrap">{{ slabel }}</span>
+        {% if t.project_rel %}
+        <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--c-surface2);color:var(--c-text3);border:1px solid var(--c-border);white-space:nowrap">{{ t.project_rel.icon }} {{ t.project_rel.name }}</span>
+        {% endif %}
+      </div>
+      {% if t.description %}
+      <div style="font-size:13px;color:var(--c-text2);margin-bottom:6px;line-height:1.5">{{ t.description }}</div>
+      {% endif %}
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--c-text3)">Created {{ t.created.strftime('%d %b %Y') }}</span>
+        {% if t.due_date %}
+        <span style="font-size:11px;font-weight:600;{% if is_overdue %}color:#9e2020{% else %}color:var(--c-text2){% endif %}">
+          {% if is_overdue %}⚠️ Overdue · {% endif %}Due {{ t.due_date }}
+        </span>
+        {% endif %}
+        {% if t.closed_at %}
+        <span style="font-size:11px;color:var(--c-text3)">✅ Closed {{ t.closed_at.strftime('%d %b %Y') }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;gap:4px;flex-shrink:0">
+      <a href="{{ url_for('task_edit', tid=t.id) }}" class="icon-btn" title="Edit">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2l3 3-8 8H3v-3L11 2z"/></svg>
+      </a>
+      <button class="icon-btn danger" onclick="confirmAction('Delete this task?','del-task-{{ t.id }}')" title="Delete">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M5 5l1 8h4l1-8"/></svg>
+      </button>
+      <form id="del-task-{{ t.id }}" method="POST" action="{{ url_for('task_delete', tid=t.id) }}" style="display:none"></form>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% block topbar %}
+<div class="topbar">
+  <div class="topbar-title">✅ To-Do Tasks</div>
+  <a href="{{ url_for('task_new') }}" class="btn btn-primary">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+    New Task
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="content">
+
+  <!-- STATUS PILLS -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+    {% for sv, slabel, scolor, sbg in [
+      ('',           'All',         '#5a5852','#f0eeeb'),
+      ('open',       'Open',        '#1a5fa8','#e8f0fb'),
+      ('inprogress', 'In Progress', '#1e6b3a','#e4f2e9'),
+      ('blocked',    'Blocked',     '#9e2020','#fde8e8'),
+      ('closed',     'Closed',      '#5a5852','#f0eeeb')
+    ] %}
+    <a href="{{ url_for('tasks', status=sv, project=project_f, priority=priority_f, q=q) }}"
+      style="display:inline-flex;align-items:center;gap:7px;padding:7px 15px;border-radius:20px;
+        font-size:13px;font-weight:500;color:{{ scolor }};background:{{ sbg }};
+        border:1.5px solid {{ scolor }}30;transition:opacity .12s;
+        {% if status_f==sv %}box-shadow:0 0 0 2px {{ scolor }}{% endif %}">
+      {% if sv=='' %}📋{% elif sv=='open' %}○{% elif sv=='inprogress' %}◑{% elif sv=='blocked' %}✕{% else %}✓{% endif %}
+      {{ slabel }}
+      <span style="font-size:11px;background:rgba(0,0,0,.08);padding:1px 6px;border-radius:10px">{{ counts[sv or 'all'] }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- FILTERS -->
+  <form method="GET" action="{{ url_for('tasks') }}" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;align-items:center">
+    <input type="hidden" name="status" value="{{ status_f }}">
+    <select name="project" onchange="this.form.submit()"
+      style="padding:7px 10px;border:1px solid var(--c-border2);border-radius:var(--rs);font-size:13px;background:var(--c-surface2);color:var(--c-text);outline:none;min-width:170px">
+      <option value="">All Projects</option>
+      {% for p in projects %}
+      <option value="{{ p.id }}" {{ 'selected' if project_f==p.id|string }}>{{ p.icon }} {{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="priority" onchange="this.form.submit()"
+      style="padding:7px 10px;border:1px solid var(--c-border2);border-radius:var(--rs);font-size:13px;background:var(--c-surface2);color:var(--c-text);outline:none">
+      <option value="">All Priorities</option>
+      {% for pv, pl in [('critical','🔴 Critical'),('high','🟠 High'),('medium','🔵 Medium'),('low','🟢 Low')] %}
+      <option value="{{ pv }}" {{ 'selected' if priority_f==pv }}>{{ pl }}</option>
+      {% endfor %}
+    </select>
+    <div style="position:relative;flex:1;min-width:160px">
+      <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--c-text3);pointer-events:none"
+        viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5"/><path d="M11 11l3 3"/></svg>
+      <input type="text" name="q" value="{{ q }}" placeholder="Search tasks…"
+        style="width:100%;padding:7px 10px 7px 28px;border:1px solid var(--c-border2);border-radius:var(--rs);font-size:13px;background:var(--c-surface2);color:var(--c-text);outline:none">
+    </div>
+    <button type="submit" class="btn btn-sm">Search</button>
+    {% if status_f or project_f or priority_f or q %}
+    <a href="{{ url_for('tasks') }}" class="btn btn-sm btn-ghost">✕ Clear</a>
+    {% endif %}
+  </form>
+
+  <!-- ACTIVE TASKS -->
+  {% if tasks_open %}
+  <div style="margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--c-text3)">
+    Active &nbsp;·&nbsp; {{ tasks_open|length }} task{{ 's' if tasks_open|length != 1 }}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:28px">
+    {% for t in tasks_open %}{{ render_task_card(t) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- CLOSED TASKS -->
+  {% if tasks_closed %}
+  <div style="margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--c-text3)">
+    Closed &nbsp;·&nbsp; {{ tasks_closed|length }} task{{ 's' if tasks_closed|length != 1 }}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    {% for t in tasks_closed %}{{ render_task_card(t) }}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if not tasks_open and not tasks_closed %}
+  <div class="empty">
+    <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4" y="4" width="36" height="36" rx="4"/><path d="M14 22l6 6 10-12"/></svg>
+    <h3>No tasks found</h3>
+    <p>{% if status_f or project_f or priority_f or q %}Try clearing the filters above.{% else %}Create your first task to get started.{% endif %}</p>
+    <a href="{{ url_for('task_new') }}" class="btn btn-primary">New Task</a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleStatusMenu(id){
+  document.querySelectorAll('[id^="smenu-"]').forEach(m=>{
+    if(m.id!=='smenu-'+id) m.style.display='none';
+  });
+  const m=document.getElementById('smenu-'+id);
+  m.style.display=m.style.display==='none'?'block':'none';
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.status-dropdown-wrap')){
+    document.querySelectorAll('[id^="smenu-"]').forEach(m=>m.style.display='none');
+  }
+});
+</script>
+{% endblock %}

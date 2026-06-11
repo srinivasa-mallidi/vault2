@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% set all_projects = [project] %}
+{% block title %}{{ site.name }} — {{ project.name }} — SM Vault{% endblock %}
+{% block topbar %}
+<div class="topbar">
+  <div class="breadcrumb" style="flex:1;min-width:0">
+    <a href="{{ url_for('home') }}">Dashboard</a><span class="breadcrumb-sep">›</span>
+    <a href="{{ url_for('project_detail', pid=project.id) }}">{{ project.icon }} {{ project.name }}</a><span class="breadcrumb-sep">›</span>
+    <span>{{ site.name }}</span>
+  </div>
+  <div style="display:flex;gap:6px;flex-shrink:0">
+    <a href="{{ url_for('edit_site', pid=project.id, sid=site.id) }}" class="btn btn-sm">Edit site</a>
+    <button class="icon-btn danger btn-sm" onclick="confirmAction('Delete site &quot;{{ site.name }}&quot; and all its sections?','del-site-{{ site.id }}')">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M5 5l1 8h4l1-8"/></svg>
+    </button>
+    <form id="del-site-{{ site.id }}" method="POST" action="{{ url_for('delete_site', pid=project.id, sid=site.id) }}" style="display:none"></form>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="content">
+  <!-- Site header -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div class="page-title" style="margin:0">{{ site.name }}</div>
+        {% if site.environment %}
+        {% set env_cls = {'Production':'badge-prod','UAT':'badge-uat','Dev':'badge-dev','Test':'badge-test','Staging':'badge-staging'}.get(site.environment,'badge-dev') %}
+        <span class="badge {{ env_cls }}">{{ site.environment }}</span>
+        {% endif %}
+      </div>
+      {% if site.description %}<div class="page-subtitle">{{ site.description }}</div>{% endif %}
+    </div>
+    <!-- Add section dropdown -->
+    <div class="page-actions" style="position:relative">
+      <button class="btn btn-primary" onclick="toggleAddMenu()" id="add-menu-btn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+        Add Section
+      </button>
+      <div id="add-menu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);
+        background:var(--c-surface);border:1px solid var(--c-border2);border-radius:var(--r);
+        box-shadow:var(--shadow2);min-width:180px;z-index:300;overflow:hidden">
+        {% for stype, icon, label in [
+          ('url','🔗','URL / Links'),
+          ('server','🖥️','Server Details'),
+          ('database','🗄️','Database Config'),
+          ('credentials','🔑','Credentials'),
+          ('custom','📋','Custom Key-Value')
+        ] %}
+        <a href="{{ url_for('new_section', pid=project.id, sid=site.id, stype=stype) }}"
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:13px;color:var(--c-text2);transition:background .1s"
+          onmouseover="this.style.background='var(--c-surface2)'" onmouseout="this.style.background=''">
+          <span>{{ icon }}</span> {{ label }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sections -->
+  {% if site.sections %}
+  {% for sec in site.sections %}
+  {% set data = sec.get_data() %}
+  <div class="section-block">
+    <div class="section-head" id="sh-{{ sec.id }}" onclick="toggleSection({{ sec.id }})">
+      <svg class="section-expand" id="sa-{{ sec.id }}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><path d="M6 4l4 4-4 4"/></svg>
+      <span style="font-size:16px">
+        {% if sec.stype=='url' %}🔗{% elif sec.stype=='server' %}🖥️{% elif sec.stype=='database' %}🗄️{% elif sec.stype=='credentials' %}🔑{% else %}📋{% endif %}
+      </span>
+      <span class="section-title-text">{{ sec.title }}</span>
+      <span class="badge stype-{{ sec.stype }}" style="font-size:10px;padding:2px 8px">{{ sec.stype }}</span>
+      <div class="section-actions" onclick="event.stopPropagation()">
+        <a href="{{ url_for('edit_section', pid=project.id, sid=site.id, secid=sec.id) }}" class="icon-btn" title="Edit">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2l3 3-8 8H3v-3L11 2z"/></svg>
+        </a>
+        <button class="icon-btn danger" onclick="confirmAction('Delete this section?','del-sec-{{ sec.id }}')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M6 5V3h4v2M5 5l1 8h4l1-8"/></svg>
+        </button>
+        <form id="del-sec-{{ sec.id }}" method="POST" action="{{ url_for('delete_section', pid=project.id, sid=site.id, secid=sec.id) }}" style="display:none"></form>
+      </div>
+    </div>
+    <div class="section-body" id="sb-{{ sec.id }}">
+
+      {# URL SECTION #}
+      {% if sec.stype == 'url' %}
+        {% if data.entries %}
+          {% for entry in data.entries %}
+          <div class="url-card">
+            <div class="url-card-label">{{ entry.label or 'URL' }}</div>
+            <div class="url-card-url">
+              <a href="{{ entry.url }}" target="_blank" rel="noopener">{{ entry.url }}</a>
+              <button class="copy-btn" onclick="copyText('{{ entry.url }}')" title="Copy URL">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1"/><path d="M3 11V3h8"/></svg>
+              </button>
+            </div>
+            {% if entry.desc %}<div class="url-card-desc">{{ entry.desc }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        {% else %}<p style="font-size:13px;color:var(--c-text3)">No URLs added.</p>{% endif %}
+
+      {# SERVER SECTION #}
+      {% elif sec.stype == 'server' %}
+        <div class="field-list">
+          {% for key, label in [('hostname','Hostname'),('ip','IP Address'),('os','OS / Platform'),('version','Version'),('cpu','CPU'),('ram','RAM'),('disk','Storage'),('location','Location')] %}
+          {% if data.get(key) %}
+          <div class="field-row">
+            <div class="field-key">{{ label }}</div>
+            <div class="field-val">{{ data[key] }}
+              <button class="copy-btn" onclick="copyText('{{ data[key] }}')">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1"/><path d="M3 11V3h8"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endif %}{% endfor %}
+          {% if data.get('notes') %}<div class="field-row"><div class="field-key">Notes</div><div class="field-val" style="white-space:pre-wrap;color:var(--c-text2)">{{ data.notes }}</div></div>{% endif %}
+        </div>
+
+      {# DATABASE SECTION #}
+      {% elif sec.stype == 'database' %}
+        <div class="field-list">
+          {% for key, label in [('db_type','DB Type'),('host','Host / Server'),('port','Port'),('sid','SID / Service'),('schema','Schema / DB'),('version','Version')] %}
+          {% if data.get(key) %}
+          <div class="field-row">
+            <div class="field-key">{{ label }}</div>
+            <div class="field-val">{{ data[key] }}
+              <button class="copy-btn" onclick="copyText('{{ data[key] }}')">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1"/><path d="M3 11V3h8"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endif %}{% endfor %}
+          {% if data.get('notes') %}<div class="field-row"><div class="field-key">Notes</div><div class="field-val" style="white-space:pre-wrap;color:var(--c-text2)">{{ data.notes }}</div></div>{% endif %}
+        </div>
+
+      {# CREDENTIALS SECTION #}
+      {% elif sec.stype == 'credentials' %}
+        {% if data.entries %}
+          {% for cred in data.entries %}
+          <div class="cred-card">
+            <div class="cred-label">{{ cred.label or 'Credential ' + loop.index|string }}</div>
+            <div class="cred-fields">
+              {% if cred.username %}
+              <div class="field-row" style="border:none;padding:4px 0">
+                <div class="field-key">Username</div>
+                <div class="field-val">{{ cred.username }}
+                  <button class="copy-btn" onclick="copyText('{{ cred.username }}')">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1"/><path d="M3 11V3h8"/></svg>
+                  </button>
+                </div>
+              </div>{% endif %}
+              {% if cred.password %}
+              <div class="field-row" style="border:none;padding:4px 0">
+                <div class="field-key">Password</div>
+                <div class="field-val">
+                  <span class="pwd-mask" id="pw-{{ sec.id }}-{{ loop.index0 }}" data-pwd="{{ cred.password }}">••••••••</span>
+                  <button class="reveal-btn" onclick="togglePwd('pw-{{ sec.id }}-{{ loop.index0 }}',this)" title="Reveal">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="8" cy="8" rx="6" ry="4"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg>
+                  </button>
+                  <button class="copy-btn" onclick="copyText('{{ cred.password }}')" title="Copy password">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1"/><path d="M3 11V3h8"/></svg>
+                  </button>
+                </div>
+              </div>{% endif %}
+              {% if cred.note %}<div class="field-row" style="border:none;padding:4px 0"><div class="field-key">Note</div><div class="field-val" style="color:var(--c-text2)">{{ cred.note }}</div></div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}<p style="font-size:13px;color:var(--c-text3)">No credentials added.</p>{% endif %}
+
+      {# CUSTOM SECTION #}
+      {% elif sec.stype == 'custom' %}
+        {% if data.pairs %}
+        <div class="field-list">
+          {% for pair in data.pairs %}
+          <div class="field-row">
+            <div class="field-key">{{ pair.key }}</div>
+            <div class="field-val">{{ pair.value }}
+              <button class="copy-btn" onclick="copyText('{{ pair.value }}')">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8" height="9" rx="1"/><path d="M3 11V3h8"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}<p style="font-size:13px;color:var(--c-text3)">No custom fields added.</p>{% endif %}
+      {% endif %}
+
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="empty">
+    <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4" y="8" width="36" height="28" rx="3"/><path d="M4 14h36"/><path d="M14 20h16M14 26h10"/></svg>
+    <h3>No sections yet</h3>
+    <p>Click <strong>Add Section</strong> above to add URLs, server info, database config, credentials, or custom fields.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAddMenu(){
+  const m=document.getElementById('add-menu');
+  m.style.display=m.style.display==='none'?'block':'none';
+}
+document.addEventListener('click',function(e){
+  const btn=document.getElementById('add-menu-btn');
+  const menu=document.getElementById('add-menu');
+  if(menu && btn && !btn.contains(e.target) && !menu.contains(e.target)){
+    menu.style.display='none';
+  }
+});
+// Auto-open first section
+document.addEventListener('DOMContentLoaded',function(){
+  const first=document.querySelector('.section-head');
+  if(first) first.click();
+});
+</script>
+{% endblock %}

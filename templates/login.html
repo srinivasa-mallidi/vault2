@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign In — SM Vault</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--blue:#1a5fa8;--blue2:#154d8a;--red:#9e2020;--red-bg:#fde8e8;
+  --bg:#f4f3f1;--surface:#fff;--border:rgba(0,0,0,.1);--border2:rgba(0,0,0,.16);
+  --text:#181816;--text2:#5a5852;--text3:#9a9790;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+body{font-family:var(--font);background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.wrap{width:100%;max-width:380px}
+.card{background:var(--surface);border-radius:16px;padding:36px 32px;box-shadow:0 2px 8px rgba(0,0,0,.08),0 12px 32px rgba(0,0,0,.08)}
+.logo-row{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.logo-icon{width:42px;height:42px;background:var(--blue);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-icon svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8}
+.logo-name{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.logo-sub{font-size:12px;color:var(--text3);margin-bottom:28px}
+.error-box{background:var(--red-bg);color:var(--red);border:1px solid rgba(158,32,32,.2);
+  border-radius:7px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+.f-row{margin-bottom:15px}
+.f-row label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px;letter-spacing:.02em}
+.f-row input{width:100%;padding:10px 13px;border:1px solid var(--border2);border-radius:7px;
+  font-size:14px;background:#f9f8f6;color:var(--text);outline:none;font-family:var(--font);transition:border-color .15s}
+.f-row input:focus{border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(26,95,168,.1)}
+.submit-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;
+  border-radius:7px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);
+  letter-spacing:.02em;transition:background .12s;margin-top:4px}
+.submit-btn:hover{background:var(--blue2)}
+.hint{text-align:center;margin-top:16px;padding:12px;background:#f9f8f6;border-radius:7px;
+  font-size:12px;color:var(--text3);border:1px solid var(--border)}
+.hint strong{color:var(--text2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="logo-row">
+      <div class="logo-icon"><svg viewBox="0 0 22 22"><rect x="3" y="2" width="16" height="18" rx="2.5"/><path d="M7 8h8M7 11.5h8M7 15h5"/></svg></div>
+      <div class="logo-name">SM Vault</div>
+    </div>
+    <div class="logo-sub">Project Knowledge &amp; Credentials Manager</div>
+
+    {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+
+    <form method="POST">
+      <div class="f-row">
+        <label>Username</label>
+        <input type="text" name="username" autofocus autocomplete="username" placeholder="Enter your username" required>
+      </div>
+      <div class="f-row">
+        <label>Password</label>
+        <input type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required>
+      </div>
+      <button type="submit" class="submit-btn">Sign in →</button>
+    </form>
+    <div class="hint">Access is restricted to authorized personnel only.<br><strong>SM_ADMIN</strong> account · Shell QGC</div>
+  </div>
+</div>
+</body>
+</html>

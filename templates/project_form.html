@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% set all_projects = [] %}
+{% block title %}{{ 'Edit Project' if project else 'New Project' }} — SM Vault{% endblock %}
+{% block topbar %}
+<div class="topbar">
+  <div class="breadcrumb">
+    <a href="{{ url_for('home') }}">Dashboard</a>
+    <span class="breadcrumb-sep">›</span>
+    <span>{{ 'Edit Project' if project else 'New Project' }}</span>
+  </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="content">
+<div class="form-wrap">
+  <div class="card">
+    <div class="card-header"><h3>{{ 'Edit Project' if project else 'New Project' }}</h3></div>
+    <div class="card-body">
+    <form method="POST">
+      <div class="form-section">
+        <div class="grid-2">
+          <div class="form-row">
+            <label>Project Name *</label>
+            <input type="text" name="name" value="{{ project.name if project else '' }}" placeholder="e.g. Maximo MAS 8" required autofocus>
+          </div>
+          <div class="form-row">
+            <label>Icon (emoji)</label>
+            <input type="text" name="icon" value="{{ project.icon if project else '📁' }}" placeholder="📁" maxlength="4">
+            <div class="form-hint">Single emoji, e.g. ⚙️ 🔬 📡 🗄️ 🌐</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Description</label>
+          <textarea name="description" placeholder="Brief description of this project…">{{ project.description if project else '' }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>Accent Color</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="color" name="color" value="{{ project.color if project else '#1a5fa8' }}" style="width:46px;height:36px;padding:2px;border-radius:6px;cursor:pointer">
+            <span style="font-size:12px;color:var(--c-text3)">Used for project card accent bar</span>
+          </div>
+        </div>
+      </div>
+      <div class="form-foot">
+        <a href="{{ url_for('project_detail', pid=project.id) if project else url_for('home') }}" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if project else 'Create Project' }}</button>
+      </div>
+    </form>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
