@@ -9,7 +9,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'smvault-offline-key-2024')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smvault.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB max upload
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500 MB
 
 db = SQLAlchemy(app)
 
@@ -326,15 +326,27 @@ def kb_list(pid):
 def kb_new(pid):
     p = Project.query.get_or_404(pid)
     if request.method == 'POST':
-        pg = KBPage(
-            project_id=pid,
-            title=request.form.get('title','').strip(),
-            content=request.form.get('content',''),
-            updated=datetime.utcnow()
-        )
-        if not pg.title:
+        title   = request.form.get('title','').strip()
+        content = request.form.get('content','').strip()
+        # fallback: if content empty but raw html textarea has data
+        if not content:
+            content = request.form.get('_html_raw','').strip()
+        # fallback: if html file uploaded
+        html_file = request.files.get('html_file')
+        if html_file and html_file.filename:
+            try:
+                content = html_file.read().decode('utf-8', errors='replace')
+            except Exception:
+                pass
+        if not title:
             flash('Title required.','error')
             return render_template('kb_form.html', project=p, page=None)
+        pg = KBPage(
+            project_id=pid,
+            title=title,
+            content=content,
+            updated=datetime.utcnow()
+        )
         db.session.add(pg)
         p.updated = datetime.utcnow()
         db.session.commit()
@@ -357,7 +369,16 @@ def kb_edit(pid, pgid):
     pg = KBPage.query.get_or_404(pgid)
     if request.method == 'POST':
         pg.title   = request.form.get('title','').strip()
-        pg.content = request.form.get('content','')
+        content    = request.form.get('content','').strip()
+        if not content:
+            content = request.form.get('_html_raw','').strip()
+        html_file = request.files.get('html_file')
+        if html_file and html_file.filename:
+            try:
+                content = html_file.read().decode('utf-8', errors='replace')
+            except Exception:
+                pass
+        pg.content = content
         pg.updated = datetime.utcnow()
         p.updated  = datetime.utcnow()
         db.session.commit()
@@ -387,8 +408,16 @@ def api_passwords(secid):
 
 @app.errorhandler(413)
 def too_large(e):
-    flash('Content too large. Maximum allowed size is 50MB.', 'error')
-    return redirect(request.referrer or url_for('home')), 413
+    return '''<!DOCTYPE html><html><head><title>Content Too Large</title>
+    <style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f4f3f1}
+    .box{background:#fff;border-radius:12px;padding:36px 32px;max-width:480px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.1)}
+    h1{font-size:20px;margin-bottom:10px;color:#1a1a18}p{font-size:13px;color:#5a5852;margin-bottom:20px;line-height:1.6}
+    a{display:inline-block;padding:9px 20px;background:#1a5fa8;color:#fff;border-radius:6px;font-size:13px;text-decoration:none}</style></head>
+    <body><div class="box"><div style="font-size:36px;margin-bottom:12px">📄</div>
+    <h1>Content Too Large</h1>
+    <p>The content you are trying to save exceeds the maximum allowed size.<br><br>
+    <strong>Tip:</strong> If pasting large HTML, try splitting into multiple KB pages, or remove large embedded images/base64 data.</p>
+    <a href="javascript:history.back()">← Go Back</a></div></body></html>''', 413
 
 def init_db():
     with app.app_context():
