@@ -9,6 +9,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'smvault-offline-key-2024')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smvault.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB max upload
 
 db = SQLAlchemy(app)
 
@@ -384,6 +385,11 @@ def api_passwords(secid):
 
 # ── INIT ──────────────────────────────────────────────────────────────────────
 
+@app.errorhandler(413)
+def too_large(e):
+    flash('Content too large. Maximum allowed size is 50MB.', 'error')
+    return redirect(request.referrer or url_for('home')), 413
+
 def init_db():
     with app.app_context():
         db.create_all()
@@ -414,9 +420,7 @@ def init_db():
             db.session.commit()
             print('Sample data seeded.')
 
-
-
-# ── TASKS MODEL (appended) ─────────────────────────────────────────────────────
+# ── TASKS ── ─────────────────────────────────────────────────────
 # NOTE: Already imported above — this extends the existing app
 
 class Task(db.Model):
