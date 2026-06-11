@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% set all_projects = [project] %}
 {% block title %}{{ 'Edit' if page else 'New' }} KB Page — {{ project.name }}{% endblock %}
+
 {% block topbar %}
 <div class="topbar">
   <div class="breadcrumb" style="flex:1;min-width:0">
@@ -11,154 +12,196 @@
   </div>
 </div>
 {% endblock %}
+
 {% block content %}
 <div class="content">
 <div style="max-width:860px">
   <form method="POST" id="kb-form">
     <div class="form-row" style="margin-bottom:16px">
       <label>Page Title *</label>
-      <input type="text" name="title" value="{{ page.title if page else '' }}" placeholder="e.g. Automation Scripts Overview" required autofocus style="font-size:16px;padding:10px 13px">
+      <input type="text" name="title" value="{{ page.title if page else '' }}"
+        placeholder="e.g. Automation Scripts Overview" required autofocus
+        style="font-size:16px;padding:10px 13px">
     </div>
 
-    <!-- WYSIWYG EDITOR -->
     <div style="margin-bottom:16px">
       <label style="display:block;font-size:12px;font-weight:600;color:var(--c-text2);margin-bottom:5px;letter-spacing:.02em">Content</label>
-      <div class="editor-toolbar" id="editor-toolbar">
-        <button type="button" onclick="exec('bold')" title="Bold"><b>B</b></button>
-        <button type="button" onclick="exec('italic')" title="Italic"><i>I</i></button>
-        <button type="button" onclick="exec('underline')" title="Underline"><u>U</u></button>
-        <button type="button" onclick="exec('strikeThrough')" title="Strikethrough"><s>S</s></button>
+      <div class="editor-toolbar">
+        <button type="button" onclick="kbExec('bold')"          title="Bold"><b>B</b></button>
+        <button type="button" onclick="kbExec('italic')"        title="Italic"><i>I</i></button>
+        <button type="button" onclick="kbExec('underline')"     title="Underline"><u>U</u></button>
+        <button type="button" onclick="kbExec('strikeThrough')" title="Strikethrough"><s>S</s></button>
         <div class="sep"></div>
-        <button type="button" onclick="setBlock('h1')" title="Heading 1" style="font-size:11px;font-weight:700">H1</button>
-        <button type="button" onclick="setBlock('h2')" title="Heading 2" style="font-size:11px;font-weight:700">H2</button>
-        <button type="button" onclick="setBlock('h3')" title="Heading 3" style="font-size:11px;font-weight:700">H3</button>
-        <button type="button" onclick="setBlock('p')" title="Paragraph" style="font-size:11px">P</button>
+        <button type="button" onclick="kbSetBlock('h1')" style="font-size:11px;font-weight:700">H1</button>
+        <button type="button" onclick="kbSetBlock('h2')" style="font-size:11px;font-weight:700">H2</button>
+        <button type="button" onclick="kbSetBlock('h3')" style="font-size:11px;font-weight:700">H3</button>
+        <button type="button" onclick="kbSetBlock('p')"  style="font-size:11px">P</button>
         <div class="sep"></div>
-        <button type="button" onclick="exec('insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" onclick="exec('insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" onclick="kbExec('insertUnorderedList')">• List</button>
+        <button type="button" onclick="kbExec('insertOrderedList')">1. List</button>
         <div class="sep"></div>
-        <button type="button" onclick="insertCode()" title="Inline code" style="font-family:monospace;font-size:11px">`code`</button>
-        <button type="button" onclick="insertPre()" title="Code block" style="font-family:monospace;font-size:11px">```block</button>
-        <button type="button" onclick="insertTable()" title="Table">Table</button>
-        <button type="button" onclick="insertQuote()" title="Blockquote">❝ Quote</button>
+        <button type="button" onclick="kbInsertCode()"   style="font-family:monospace;font-size:11px">`code`</button>
+        <button type="button" onclick="kbInsertPre()"    style="font-family:monospace;font-size:11px">```block</button>
+        <button type="button" onclick="kbInsertTable()">Table</button>
+        <button type="button" onclick="kbInsertQuote()">❝ Quote</button>
         <div class="sep"></div>
-        <button type="button" onclick="insertLink()" title="Link">🔗 Link</button>
-        <button type="button" onclick="exec('removeFormat')" title="Clear formatting" style="font-size:11px">Clear</button>
+        <button type="button" onclick="kbInsertLink()">🔗 Link</button>
+        <button type="button" onclick="kbExec('removeFormat')" style="font-size:11px">Clear</button>
         <div class="sep"></div>
-        <button type="button" id="html-toggle-btn" onclick="toggleHtmlMode()" title="View/Edit HTML" style="font-family:monospace;font-size:11px">&lt;/&gt;</button>
+        <button type="button" id="html-toggle-btn" onclick="kbToggleHtml()" style="font-family:monospace;font-size:11px">&lt;/&gt;</button>
       </div>
-      <div class="editor-area" id="editor" contenteditable="true" spellcheck="true"></div>
-      <textarea id="html-editor" name="_html_raw" style="display:none;width:100%;min-height:340px;padding:16px;border:1px solid var(--c-border2);border-radius:0 0 var(--rs) var(--rs);font-family:monospace;font-size:13px;background:var(--c-surface2);color:var(--c-text);outline:none;resize:vertical;line-height:1.5"></textarea>
-      <input type="hidden" name="content" id="content-hidden">
+      <div class="editor-area" id="kb-editor" contenteditable="true" spellcheck="true"></div>
+      <textarea id="kb-html-editor" name="_html_raw"
+        style="display:none;width:100%;min-height:340px;padding:16px;
+        border:1px solid var(--c-border2);border-radius:0 0 var(--rs) var(--rs);
+        font-family:monospace;font-size:13px;background:var(--c-surface2);
+        color:var(--c-text);outline:none;resize:vertical;line-height:1.5"></textarea>
+      <input type="hidden" name="content" id="kb-content-hidden">
     </div>
 
     <div class="form-foot">
       <a href="{{ url_for('kb_list', pid=project.id) }}" class="btn btn-ghost">Cancel</a>
-      <button type="button" onclick="saveKB()" class="btn btn-primary">{{ 'Save Changes' if page else 'Create Page' }}</button>
+      <button type="button" onclick="kbSave()" class="btn btn-primary">
+        {{ 'Save Changes' if page else 'Create Page' }}
+      </button>
     </div>
   </form>
 </div>
 </div>
 
+{# Store existing content safely in a hidden textarea to avoid JS escaping issues #}
+<textarea id="kb-existing-content" style="display:none">{{ page.content if page else '' }}</textarea>
+
 <script>
-(function(){
-  const editor = document.getElementById('editor');
-  const htmlEd = document.getElementById('html-editor');
-  let htmlMode = false;
+// All functions defined at window scope immediately — no DOMContentLoaded needed
+// because this script tag is AFTER all the elements above
 
-  // Load existing content
-  const existing = {{ (page.content or '')|tojson if page else '""' }};
-  editor.innerHTML = existing;
+var kbHtmlMode = false;
 
-  window.exec = function(cmd, val){ document.execCommand(cmd, false, val||null); editor.focus(); };
-  window.setBlock = function(tag){ document.execCommand('formatBlock', false, tag); editor.focus(); };
+function kbGetEditor()  { return document.getElementById('kb-editor'); }
+function kbGetHtmlEd()  { return document.getElementById('kb-html-editor'); }
+function kbGetHtmlBtn() { return document.getElementById('html-toggle-btn'); }
 
-  window.insertCode = function(){
-    const sel=window.getSelection();
-    if(sel.rangeCount){
-      const range=sel.getRangeAt(0);
-      const code=document.createElement('code');
-      code.textContent=sel.toString()||'code';
-      range.deleteContents();
-      range.insertNode(code);
-    }
-    editor.focus();
-  };
-
-  window.insertPre = function(){
-    const pre=document.createElement('pre');
-    const code=document.createElement('code');
-    code.textContent='// code here';
-    pre.appendChild(code);
-    insertNodeAtCursor(pre);
-  };
-
-  window.insertTable = function(){
-    const rows=parseInt(prompt('Rows:','3'));
-    const cols=parseInt(prompt('Columns:','3'));
-    if(!rows||!cols) return;
-    let html='<table><thead><tr>';
-    for(let c=0;c<cols;c++) html+=`<th>Header ${c+1}</th>`;
-    html+='</tr></thead><tbody>';
-    for(let r=0;r<rows;r++){
-      html+='<tr>';
-      for(let c=0;c<cols;c++) html+='<td>Cell</td>';
-      html+='</tr>';
-    }
-    html+='</tbody></table>';
-    document.execCommand('insertHTML', false, html);
-    editor.focus();
-  };
-
-  window.insertQuote = function(){
-    const bq=document.createElement('blockquote');
-    bq.textContent='Quote text here';
-    insertNodeAtCursor(bq);
-  };
-
-  window.insertLink = function(){
-    const url=prompt('URL:','https://');
-    if(url) document.execCommand('createLink', false, url);
-  };
-
-  function insertNodeAtCursor(node){
-    const sel=window.getSelection();
-    if(sel.rangeCount){
-      const range=sel.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(node);
-      range.setStartAfter(node);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-    editor.focus();
+// Load existing content from hidden textarea (avoids JSON/HTML escaping issues)
+(function() {
+  var existing = document.getElementById('kb-existing-content');
+  var editor = kbGetEditor();
+  if (existing && editor) {
+    editor.innerHTML = existing.value;
   }
-
-  window.toggleHtmlMode = function(){
-    htmlMode=!htmlMode;
-    const btn=document.getElementById('html-toggle-btn');
-    if(htmlMode){
-      htmlEd.value=editor.innerHTML;
-      editor.style.display='none';
-      htmlEd.style.display='block';
-      btn.classList.add('active');
-    } else {
-      editor.innerHTML=htmlEd.value;
-      editor.style.display='block';
-      htmlEd.style.display='none';
-      btn.classList.remove('active');
-    }
-  };
-
-  window.saveKB = function(){
-    const content = htmlMode ? htmlEd.value : editor.innerHTML;
-    document.getElementById('content-hidden').value = content;
-    document.getElementById('kb-form').submit();
-  };
-
-  document.querySelector('input[name="title"]').addEventListener('keydown',function(e){
-    if(e.key==='Enter'){ e.preventDefault(); editor.focus(); }
-  });
 })();
+
+function kbExec(cmd, val) {
+  document.execCommand(cmd, false, val || null);
+  kbGetEditor().focus();
+}
+
+function kbSetBlock(tag) {
+  document.execCommand('formatBlock', false, tag);
+  kbGetEditor().focus();
+}
+
+function kbInsertCode() {
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount) {
+    var range = sel.getRangeAt(0);
+    var code = document.createElement('code');
+    code.textContent = sel.toString() || 'code here';
+    range.deleteContents();
+    range.insertNode(code);
+  }
+  kbGetEditor().focus();
+}
+
+function kbInsertPre() {
+  var pre = document.createElement('pre');
+  var code = document.createElement('code');
+  code.textContent = '// paste code here';
+  pre.appendChild(code);
+  kbInsertNode(pre);
+}
+
+function kbInsertTable() {
+  var rows = parseInt(prompt('Number of rows:', '3'));
+  var cols = parseInt(prompt('Number of columns:', '3'));
+  if (!rows || !cols || isNaN(rows) || isNaN(cols)) return;
+  var html = '<table><thead><tr>';
+  for (var c = 0; c < cols; c++) html += '<th>Header ' + (c + 1) + '</th>';
+  html += '</tr></thead><tbody>';
+  for (var r = 0; r < rows; r++) {
+    html += '<tr>';
+    for (var cc = 0; cc < cols; cc++) html += '<td>Cell</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table><p></p>';
+  document.execCommand('insertHTML', false, html);
+  kbGetEditor().focus();
+}
+
+function kbInsertQuote() {
+  var bq = document.createElement('blockquote');
+  bq.textContent = 'Quote text here';
+  kbInsertNode(bq);
+}
+
+function kbInsertLink() {
+  var url = prompt('Enter URL:', 'https://');
+  if (url && url !== 'https://') {
+    document.execCommand('createLink', false, url);
+  }
+}
+
+function kbInsertNode(node) {
+  var sel = window.getSelection();
+  if (sel && sel.rangeCount) {
+    var range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(node);
+    range.setStartAfter(node);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  kbGetEditor().focus();
+}
+
+function kbToggleHtml() {
+  var editor = kbGetEditor();
+  var htmlEd = kbGetHtmlEd();
+  var btn    = kbGetHtmlBtn();
+  kbHtmlMode = !kbHtmlMode;
+  if (kbHtmlMode) {
+    htmlEd.value = editor.innerHTML;
+    editor.style.display = 'none';
+    htmlEd.style.display = 'block';
+    if (btn) btn.classList.add('active');
+  } else {
+    editor.innerHTML = htmlEd.value;
+    editor.style.display = 'block';
+    htmlEd.style.display = 'none';
+    if (btn) btn.classList.remove('active');
+  }
+}
+
+function kbSave() {
+  var editor = kbGetEditor();
+  var htmlEd = kbGetHtmlEd();
+  var hidden = document.getElementById('kb-content-hidden');
+  var form   = document.getElementById('kb-form');
+  if (!editor || !hidden || !form) {
+    alert('Page error: editor elements not found. Please refresh.');
+    return;
+  }
+  hidden.value = kbHtmlMode ? htmlEd.value : editor.innerHTML;
+  console.log('Saving KB content, length:', hidden.value.length);
+  form.submit();
+}
+
+// Prevent Enter on title from jumping out of title field
+var titleInput = document.querySelector('#kb-form input[name="title"]');
+if (titleInput) {
+  titleInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); kbGetEditor().focus(); }
+  });
+}
 </script>
 {% endblock %}
