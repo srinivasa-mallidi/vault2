@@ -1,0 +1,411 @@
+{% extends 'base.html' %}
+{% set all_projects = [] %}
+{% block title %}Timezone Converter — SM Vault{% endblock %}
+
+{% block topbar %}
+<div class="topbar">
+  <div class="topbar-title">🌏 Timezone Converter</div>
+  <span style="font-size:12px;color:var(--c-text3)">Convert IST to any timezone instantly</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+.tz-wrap{max-width:860px;margin:0 auto;padding:24px}
+.tz-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;padding:1.5rem;margin-bottom:1rem}
+.tz-card-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--c-text3);margin-bottom:1.25rem;padding-bottom:10px;border-bottom:1px solid var(--c-border)}
+.tz-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tz-field label{display:block;font-size:13px;font-weight:500;color:var(--c-text2);margin-bottom:5px}
+.tz-field input,.tz-field select{width:100%;padding:9px 12px;font-size:14px;border:1px solid var(--c-border2);border-radius:6px;background:var(--c-surface);color:var(--c-text);outline:none;font-family:inherit;transition:border-color .15s}
+.tz-field input:focus,.tz-field select:focus{border-color:var(--c-blue);box-shadow:0 0 0 3px rgba(26,95,168,.1)}
+.tz-hint{font-size:11px;color:var(--c-text3);margin-top:4px}
+
+/* Result cards */
+.tz-results{display:none;margin-top:1rem}
+.tz-result-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:1rem}
+.tz-result-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;overflow:hidden;transition:box-shadow .15s}
+.tz-result-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.tz-result-card.highlight{border-color:var(--c-blue);background:#f0f5ff}
+.tz-rc-header{padding:10px 14px;background:var(--c-surface2);border-bottom:1px solid var(--c-border);display:flex;align-items:center;justify-content:space-between}
+.tz-rc-name{font-size:12px;font-weight:600;color:var(--c-text)}
+.tz-rc-offset{font-size:11px;color:var(--c-text3);background:var(--c-surface);border:1px solid var(--c-border);border-radius:4px;padding:1px 7px}
+.tz-rc-body{padding:12px 14px}
+.tz-rc-time{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--c-text);font-family:'Courier New',monospace}
+.tz-rc-date{font-size:12px;color:var(--c-text2);margin-top:3px}
+.tz-rc-diff{font-size:11px;color:var(--c-text3);margin-top:6px}
+.tz-rc-copy{background:none;border:1px solid var(--c-border);border-radius:4px;padding:4px 9px;font-size:11px;cursor:pointer;color:var(--c-text2);font-family:inherit;transition:all .15s}
+.tz-rc-copy:hover{border-color:var(--c-blue);color:var(--c-blue);background:#f0f5ff}
+.tz-rc-copy.copied{border-color:#2a7a3b;color:#2a7a3b;background:#eef7f1}
+
+/* Quick presets */
+.tz-presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.tz-preset{background:var(--c-surface2);border:1px solid var(--c-border);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--c-text2);font-family:inherit;transition:all .15s}
+.tz-preset:hover{border-color:var(--c-blue);color:var(--c-blue);background:#eef3fc}
+.tz-preset.active{background:var(--c-blue);color:#fff;border-color:var(--c-blue)}
+
+/* IST source display */
+.tz-source-box{background:linear-gradient(135deg,#1a1a18,#2e2e2a);border-radius:10px;padding:18px 22px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.tz-source-left .label{font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.tz-source-left .time{font-size:28px;font-weight:700;font-family:'Courier New',monospace;color:#7ee8a2;letter-spacing:.02em}
+.tz-source-left .date{font-size:13px;color:rgba(255,255,255,.6);margin-top:3px}
+.tz-source-right{text-align:right}
+.tz-source-right .badge{background:rgba(126,232,162,.15);color:#7ee8a2;border:1px solid rgba(126,232,162,.3);border-radius:6px;padding:4px 12px;font-size:12px;font-weight:700}
+.tz-source-right .utc{font-size:11px;color:rgba(255,255,255,.4);margin-top:6px}
+
+/* Live badge */
+.live-dot{width:7px;height:7px;background:#7ee8a2;border-radius:50%;display:inline-block;margin-right:4px;animation:pulse-dot 2s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+/* Add timezone input area */
+.tz-add-row{display:flex;gap:10px;align-items:flex-end;margin-top:12px}
+.tz-add-row .tz-field{flex:1}
+.btn-add-tz{background:var(--c-blue);color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:opacity .15s}
+.btn-add-tz:hover{opacity:.85}
+
+/* NOW button */
+.btn-now{background:transparent;border:1px solid var(--c-border);border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;color:var(--c-text2);font-family:inherit;white-space:nowrap;transition:all .15s}
+.btn-now:hover{border-color:var(--c-blue);color:var(--c-blue);background:#eef3fc}
+
+@media(max-width:640px){.tz-grid2{grid-template-columns:1fr}.tz-source-box{flex-direction:column;gap:12px;text-align:center}.tz-source-right{text-align:center}.tz-result-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="tz-wrap">
+
+  <!-- Live IST source display -->
+  <div class="tz-source-box">
+    <div class="tz-source-left">
+      <div class="label"><span class="live-dot"></span>India Standard Time (IST · UTC+5:30)</div>
+      <div class="time" id="src-time">--:--:-- --</div>
+      <div class="date" id="src-date">Loading...</div>
+    </div>
+    <div class="tz-source-right">
+      <div class="badge">IST</div>
+      <div class="utc" id="src-utc">UTC --:--</div>
+    </div>
+  </div>
+
+  <!-- Input form -->
+  <div class="tz-card">
+    <div class="tz-card-title">Convert a specific date &amp; time</div>
+    <div class="tz-grid2">
+      <div class="tz-field">
+        <label>Date (IST)</label>
+        <input type="date" id="tz-date" />
+      </div>
+      <div class="tz-field">
+        <label>Time (IST)</label>
+        <input type="time" id="tz-time" step="1" />
+        <p class="tz-hint">24-hour format</p>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn-now" onclick="setNow()">⟳ Use current IST time</button>
+      <span style="font-size:12px;color:var(--c-text3)">or enter a custom date/time above</span>
+    </div>
+  </div>
+
+  <!-- Target timezones -->
+  <div class="tz-card">
+    <div class="tz-card-title">Target timezones</div>
+
+    <p style="font-size:12px;color:var(--c-text2);margin-bottom:12px">Quick add common zones:</p>
+    <div class="tz-presets" id="tz-presets">
+      <button class="tz-preset" data-tz="America/New_York">🇺🇸 New York (EST/EDT)</button>
+      <button class="tz-preset" data-tz="America/Los_Angeles">🇺🇸 Los Angeles (PST/PDT)</button>
+      <button class="tz-preset" data-tz="America/Chicago">🇺🇸 Chicago (CST/CDT)</button>
+      <button class="tz-preset" data-tz="Europe/London">🇬🇧 London (GMT/BST)</button>
+      <button class="tz-preset" data-tz="Europe/Paris">🇫🇷 Paris (CET/CEST)</button>
+      <button class="tz-preset" data-tz="Europe/Amsterdam">🇳🇱 Amsterdam (CET/CEST)</button>
+      <button class="tz-preset" data-tz="Asia/Dubai">🇦🇪 Dubai (GST)</button>
+      <button class="tz-preset" data-tz="Asia/Singapore">🇸🇬 Singapore (SGT)</button>
+      <button class="tz-preset" data-tz="Asia/Shanghai">🇨🇳 Shanghai (CST)</button>
+      <button class="tz-preset" data-tz="Asia/Tokyo">🇯🇵 Tokyo (JST)</button>
+      <button class="tz-preset" data-tz="Australia/Sydney">🇦🇺 Sydney (AEST/AEDT)</button>
+      <button class="tz-preset" data-tz="UTC">🌐 UTC</button>
+    </div>
+
+    <div class="tz-add-row">
+      <div class="tz-field">
+        <label>Add custom timezone</label>
+        <input type="text" id="tz-custom-input" placeholder="e.g. Asia/Kolkata, Pacific/Auckland, Europe/Berlin…" />
+        <p class="tz-hint">Use IANA timezone names (e.g. America/Toronto, Asia/Riyadh)</p>
+      </div>
+      <button class="btn-add-tz" onclick="addCustomTz()">+ Add</button>
+    </div>
+  </div>
+
+  <!-- Convert button -->
+  <button onclick="convertAll()" style="background:#1a1a18;color:#fff;border:none;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;transition:opacity .15s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    Convert
+  </button>
+
+  <!-- Results -->
+  <div class="tz-results" id="tz-results">
+    <div class="tz-card-title" style="margin-top:1.5rem;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--c-text3)">Converted times</div>
+    <div class="tz-result-grid" id="tz-result-grid"></div>
+  </div>
+
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+var selectedZones = [];
+
+// ─── LIVE CLOCK ─────────────────────────────────────────────────────────────
+var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function pad(n){return n<10?'0'+n:''+ n}
+
+function getIST(){
+  var now = new Date();
+  var utc = now.getTime() + now.getTimezoneOffset()*60000;
+  return new Date(utc + 5.5*3600000);
+}
+
+function tickSrc(){
+  var ist = getIST();
+  var h=ist.getHours(), m=ist.getMinutes(), s=ist.getSeconds();
+  var ampm=h>=12?'PM':'AM';
+  var h12=h%12||12;
+  document.getElementById('src-time').textContent = pad(h12)+':'+pad(m)+':'+pad(s)+' '+ampm;
+  document.getElementById('src-date').textContent = DAYS[ist.getDay()]+', '+ist.getDate()+' '+MONTHS[ist.getMonth()]+' '+ist.getFullYear();
+  // UTC
+  var utcNow = new Date();
+  document.getElementById('src-utc').textContent = 'UTC '+pad(utcNow.getUTCHours())+':'+pad(utcNow.getUTCMinutes());
+}
+tickSrc();
+setInterval(tickSrc, 1000);
+
+// ─── INIT DATE/TIME ──────────────────────────────────────────────────────────
+function setNow(){
+  var ist = getIST();
+  var y=ist.getFullYear(), mo=ist.getMonth()+1, d=ist.getDate();
+  var h=ist.getHours(), m=ist.getMinutes(), s=ist.getSeconds();
+  document.getElementById('tz-date').value = y+'-'+pad(mo)+'-'+pad(d);
+  document.getElementById('tz-time').value = pad(h)+':'+pad(m)+':'+pad(s);
+}
+// Set current time on load
+window.addEventListener('load', setNow);
+
+// ─── PRESETS ─────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tz-preset').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var tz = this.getAttribute('data-tz');
+    toggleZone(tz, this);
+  });
+});
+
+function toggleZone(tz, btn){
+  var idx = selectedZones.indexOf(tz);
+  if(idx === -1){
+    selectedZones.push(tz);
+    if(btn) btn.classList.add('active');
+  } else {
+    selectedZones.splice(idx,1);
+    if(btn) btn.classList.remove('active');
+  }
+}
+
+// ─── CUSTOM TZ ───────────────────────────────────────────────────────────────
+function addCustomTz(){
+  var val = document.getElementById('tz-custom-input').value.trim();
+  if(!val) return;
+  // Validate by trying to use it
+  try {
+    new Intl.DateTimeFormat('en', {timeZone: val});
+  } catch(e){
+    showToast('Invalid timezone: '+val, 3000);
+    return;
+  }
+  if(selectedZones.indexOf(val) === -1){
+    selectedZones.push(val);
+    showToast('Added: '+val);
+  }
+  document.getElementById('tz-custom-input').value = '';
+}
+
+document.getElementById('tz-custom-input').addEventListener('keydown', function(e){
+  if(e.key === 'Enter') addCustomTz();
+});
+
+// ─── CONVERT ─────────────────────────────────────────────────────────────────
+function convertAll(){
+  var dateVal = document.getElementById('tz-date').value;
+  var timeVal = document.getElementById('tz-time').value;
+
+  if(!dateVal || !timeVal){
+    showToast('Please enter a date and time', 2500);
+    return;
+  }
+  if(selectedZones.length === 0){
+    showToast('Please select at least one target timezone', 2500);
+    return;
+  }
+
+  // Parse as IST (UTC+5:30)
+  // Build ISO string treating the input as IST
+  var dtStr = dateVal + 'T' + timeVal;
+  // We need to shift: IST is UTC+5:30, so UTC = IST - 5h30m
+  var local = new Date(dtStr); // parsed as local, we override below
+  // Safer: parse date parts manually
+  var parts = dtStr.split(/[T:\-]/);
+  var y=+parts[0],mo=+parts[1]-1,d=+parts[2],h=+parts[3],m=+parts[4],s=parts[5]?+parts[5]:0;
+  // IST moment: create UTC time by subtracting 5h30m
+  var utcMs = Date.UTC(y,mo,d,h,m,s) - (5*60+30)*60000;
+  var baseDate = new Date(utcMs);
+
+  var grid = document.getElementById('tz-result-grid');
+  grid.innerHTML = '';
+
+  // Always show IST first
+  var istCard = makeResultCard(baseDate, 'Asia/Kolkata', 'India Standard Time', true);
+  grid.appendChild(istCard);
+
+  selectedZones.forEach(function(tz){
+    if(tz === 'Asia/Kolkata') return; // already shown
+    var card = makeResultCard(baseDate, tz, tz, false);
+    grid.appendChild(card);
+  });
+
+  document.getElementById('tz-results').style.display = 'block';
+  document.getElementById('tz-results').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function makeResultCard(utcDate, tz, label, isSource){
+  try {
+    // Format in target timezone
+    var opts = {timeZone: tz, weekday:'short', year:'numeric', month:'short', day:'numeric',
+                hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true};
+    var formatted = new Intl.DateTimeFormat('en-IN', opts).format(utcDate);
+
+    // Split time and date
+    var timeParts = new Intl.DateTimeFormat('en-IN', {
+      timeZone: tz, hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true
+    }).format(utcDate);
+
+    var dateParts = new Intl.DateTimeFormat('en-IN', {
+      timeZone: tz, weekday:'long', year:'numeric', month:'long', day:'numeric'
+    }).format(utcDate);
+
+    // Get UTC offset string
+    var offsetStr = getOffset(utcDate, tz);
+
+    // Diff from IST
+    var istMs = Date.UTC(
+      ...new Intl.DateTimeFormat('en',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(utcDate).reduce(function(acc,p){
+        acc[p.type]=p.value; return acc;
+      },[])
+    );
+
+    var card = document.createElement('div');
+    card.className = 'tz-result-card' + (isSource ? ' highlight' : '');
+
+    var friendlyLabel = getFriendlyLabel(tz);
+
+    card.innerHTML =
+      '<div class="tz-rc-header">' +
+        '<span class="tz-rc-name">'+ (isSource?'🇮🇳 ':'')+friendlyLabel+'</span>'+
+        '<span class="tz-rc-offset">'+offsetStr+'</span>'+
+      '</div>'+
+      '<div class="tz-rc-body">'+
+        '<div class="tz-rc-time">'+timeParts+'</div>'+
+        '<div class="tz-rc-date">'+dateParts+'</div>'+
+        '<div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between">'+
+          '<span class="tz-rc-diff" id="diff-'+safeId(tz)+'"></span>'+
+          '<button class="tz-rc-copy" onclick="copyTzResult(this, \''+escQ(timeParts)+' '+escQ(dateParts)+' ('+escQ(tz)+')\')">Copy</button>'+
+        '</div>'+
+      '</div>';
+
+    // Compute diff from IST after rendering
+    setTimeout(function(){
+      var diffEl = document.getElementById('diff-'+safeId(tz));
+      if(diffEl && !isSource){
+        var istOff = getOffsetMinutes(utcDate,'Asia/Kolkata');
+        var tgtOff = getOffsetMinutes(utcDate, tz);
+        var diffMins = tgtOff - istOff;
+        var sign = diffMins>=0?'+':'-';
+        var absDiff = Math.abs(diffMins);
+        var dh = Math.floor(absDiff/60);
+        var dm = absDiff%60;
+        var diffStr = sign+(dh>0?dh+'h':'')+(dm>0?dm+'m':'');
+        if(diffMins===0) diffStr='same as IST';
+        diffEl.textContent = 'vs IST: '+diffStr;
+      }
+    }, 10);
+
+    return card;
+  } catch(e){
+    var errCard = document.createElement('div');
+    errCard.className = 'tz-result-card';
+    errCard.innerHTML = '<div class="tz-rc-body"><div class="tz-rc-name" style="color:var(--c-red)">'+tz+'</div><div style="color:var(--c-text3);font-size:12px">Invalid timezone</div></div>';
+    return errCard;
+  }
+}
+
+function getOffset(date, tz){
+  try {
+    var parts = new Intl.DateTimeFormat('en',{
+      timeZone:tz, timeZoneName:'shortOffset'
+    }).formatToParts(date);
+    var off = parts.find(function(p){return p.type==='timeZoneName'});
+    return off ? off.value : tz;
+  } catch(e){ return tz; }
+}
+
+function getOffsetMinutes(date, tz){
+  try {
+    // Use the difference between local UTC representation and the target
+    var utcStr = new Intl.DateTimeFormat('en',{
+      timeZone:'UTC', year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
+    }).format(date);
+    var tzStr = new Intl.DateTimeFormat('en',{
+      timeZone:tz, year:'numeric',month:'2-digit',day:'2-digit',
+      hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false
+    }).format(date);
+    return (new Date(tzStr) - new Date(utcStr)) / 60000;
+  } catch(e){ return 0; }
+}
+
+function getFriendlyLabel(tz){
+  var map = {
+    'Asia/Kolkata':'India Standard Time',
+    'America/New_York':'New York',
+    'America/Los_Angeles':'Los Angeles',
+    'America/Chicago':'Chicago',
+    'America/Toronto':'Toronto',
+    'Europe/London':'London',
+    'Europe/Paris':'Paris',
+    'Europe/Amsterdam':'Amsterdam',
+    'Europe/Berlin':'Berlin',
+    'Europe/Moscow':'Moscow',
+    'Asia/Dubai':'Dubai',
+    'Asia/Singapore':'Singapore',
+    'Asia/Shanghai':'Shanghai',
+    'Asia/Tokyo':'Tokyo',
+    'Asia/Riyadh':'Riyadh',
+    'Australia/Sydney':'Sydney',
+    'Pacific/Auckland':'Auckland',
+    'UTC':'UTC'
+  };
+  return map[tz] || tz.split('/').pop().replace('_',' ');
+}
+
+function safeId(tz){ return tz.replace(/[^a-zA-Z0-9]/g,'_'); }
+function escQ(s){ return (s||'').replace(/'/g,"\\'"); }
+
+function copyTzResult(btn, text){
+  navigator.clipboard.writeText(text).then(function(){
+    var orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(function(){ btn.textContent=orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ─── ENTER KEY ───────────────────────────────────────────────────────────────
+document.getElementById('tz-date').addEventListener('keydown',function(e){if(e.key==='Enter')convertAll()});
+document.getElementById('tz-time').addEventListener('keydown',function(e){if(e.key==='Enter')convertAll()});
+</script>
+{% endblock %}

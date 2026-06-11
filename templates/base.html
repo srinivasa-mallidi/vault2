@@ -66,6 +66,20 @@ button,input,select,textarea{font-family:var(--font)}
 .breadcrumb a:hover{text-decoration:underline}
 .breadcrumb-sep{font-size:12px;opacity:.5}
 
+/* ── IST CLOCK BAR ── */
+#ist-clock-bar{display:flex;align-items:center;gap:7px;padding:5px 20px;
+  background:linear-gradient(90deg,#1a1a18 0%,#2a2a26 100%);
+  color:#f0f0ee;font-size:12px;font-weight:500;text-decoration:none;
+  border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer;
+  transition:background .15s;user-select:none;flex-shrink:0}
+#ist-clock-bar:hover{background:linear-gradient(90deg,#2a2a26 0%,#3a3a34 100%)}
+#ist-time{font-family:'Courier New',monospace;font-size:13px;font-weight:700;
+  color:#7ee8a2;letter-spacing:.04em}
+#ist-date{color:#c8c8c0;font-size:11.5px}
+.ist-sep{color:rgba(255,255,255,.25);font-size:10px}
+.ist-label{background:rgba(126,232,162,.15);color:#7ee8a2;border:1px solid rgba(126,232,162,.3);
+  border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.06em}
+
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border:1px solid var(--c-border2);
   border-radius:var(--rs);font-size:13px;font-weight:500;cursor:pointer;background:var(--c-surface);
@@ -366,6 +380,14 @@ button,input,select,textarea{font-family:var(--font)}
   </aside>
 
   <div class="main">
+    <!-- IST CLOCK BAR -->
+    <a href="{{ url_for('timezone_converter') }}" id="ist-clock-bar" title="Click to open Timezone Converter">
+      <span id="ist-date"></span>
+      <span class="ist-sep">&#183;</span>
+      <span id="ist-time"></span>
+      <span class="ist-label">IST</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </a>
     {% block topbar %}{% endblock %}
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -441,5 +463,32 @@ function removeRow(btn){
 }
 </script>
 {% block scripts %}{% endblock %}
+<script>
+// IST live clock
+(function(){
+  var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function pad(n){return n<10?'0'+n:n}
+  function tick(){
+    var now=new Date();
+    // IST = UTC+5:30
+    var ist=new Date(now.getTime()+(5*60+30)*60000 - now.getTimezoneOffset()*60000 + now.getTimezoneOffset()*60000);
+    // Safe: always compute IST as UTC+5:30
+    var utc=now.getTime()+now.getTimezoneOffset()*60000;
+    var ist2=new Date(utc+(5.5*3600000));
+    var h=ist2.getHours(),m=ist2.getMinutes(),s=ist2.getSeconds();
+    var ampm=h>=12?'PM':'AM';
+    var h12=h%12||12;
+    var d=ist2.getDate(),mon=MONTHS[ist2.getMonth()],yr=ist2.getFullYear();
+    var day=DAYS[ist2.getDay()];
+    var dt=document.getElementById('ist-date');
+    var tm=document.getElementById('ist-time');
+    if(dt) dt.textContent=day+', '+d+' '+mon+' '+yr;
+    if(tm) tm.textContent=pad(h12)+':'+pad(m)+':'+pad(s)+' '+ampm;
+  }
+  tick();
+  setInterval(tick,1000);
+})();
+</script>
 </body>
 </html>
