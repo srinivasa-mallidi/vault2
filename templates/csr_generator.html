@@ -10,6 +10,7 @@
 {% endblock %}
 
 {% block content %}
+<script src="{{ url_for('static', filename='forge.min.js') }}"></script>
 <div style="padding:0;flex:1;overflow-y:auto">
 <!-- ═══════════════════════════════════════════════════════════════
      CSR GENERATOR — embedded inline, zero external dependencies
@@ -157,9 +158,6 @@
     </div>
   </div>
 </div>
-
-<!-- forge.js loaded from static -->
-<script src="{{ url_for('static', filename='forge.min.js') }}"></script>
 
 <!-- CSR logic — scoped with csr prefix to avoid collisions -->
 <script>
