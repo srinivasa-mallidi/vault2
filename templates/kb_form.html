@@ -59,99 +59,106 @@
   </form>
 </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-const editor = document.getElementById('editor');
-const htmlEd = document.getElementById('html-editor');
-let htmlMode = false;
+(function(){
+  const editor = document.getElementById('editor');
+  const htmlEd = document.getElementById('html-editor');
+  let htmlMode = false;
 
-// Load existing content
-const existing = {{ (page.content or '')|tojson if page else '""' }};
-editor.innerHTML = existing;
+  // Load existing content
+  const existing = {{ (page.content or '')|tojson if page else '""' }};
+  editor.innerHTML = existing;
 
-function exec(cmd, val=null){ document.execCommand(cmd,false,val); editor.focus(); }
-function setBlock(tag){ document.execCommand('formatBlock',false,tag); editor.focus(); }
-function insertCode(){
-  const sel=window.getSelection();
-  if(sel.rangeCount){
-    const range=sel.getRangeAt(0);
+  window.exec = function(cmd, val){ document.execCommand(cmd, false, val||null); editor.focus(); };
+  window.setBlock = function(tag){ document.execCommand('formatBlock', false, tag); editor.focus(); };
+
+  window.insertCode = function(){
+    const sel=window.getSelection();
+    if(sel.rangeCount){
+      const range=sel.getRangeAt(0);
+      const code=document.createElement('code');
+      code.textContent=sel.toString()||'code';
+      range.deleteContents();
+      range.insertNode(code);
+    }
+    editor.focus();
+  };
+
+  window.insertPre = function(){
+    const pre=document.createElement('pre');
     const code=document.createElement('code');
-    code.textContent=sel.toString()||'code';
-    range.deleteContents();
-    range.insertNode(code);
+    code.textContent='// code here';
+    pre.appendChild(code);
+    insertNodeAtCursor(pre);
+  };
+
+  window.insertTable = function(){
+    const rows=parseInt(prompt('Rows:','3'));
+    const cols=parseInt(prompt('Columns:','3'));
+    if(!rows||!cols) return;
+    let html='<table><thead><tr>';
+    for(let c=0;c<cols;c++) html+=`<th>Header ${c+1}</th>`;
+    html+='</tr></thead><tbody>';
+    for(let r=0;r<rows;r++){
+      html+='<tr>';
+      for(let c=0;c<cols;c++) html+='<td>Cell</td>';
+      html+='</tr>';
+    }
+    html+='</tbody></table>';
+    document.execCommand('insertHTML', false, html);
+    editor.focus();
+  };
+
+  window.insertQuote = function(){
+    const bq=document.createElement('blockquote');
+    bq.textContent='Quote text here';
+    insertNodeAtCursor(bq);
+  };
+
+  window.insertLink = function(){
+    const url=prompt('URL:','https://');
+    if(url) document.execCommand('createLink', false, url);
+  };
+
+  function insertNodeAtCursor(node){
+    const sel=window.getSelection();
+    if(sel.rangeCount){
+      const range=sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(node);
+      range.setStartAfter(node);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    editor.focus();
   }
-  editor.focus();
-}
-function insertPre(){
-  const pre=document.createElement('pre');
-  const code=document.createElement('code');
-  code.textContent='// code here';
-  pre.appendChild(code);
-  insertNode(pre);
-}
-function insertTable(){
-  const rows=parseInt(prompt('Rows:','3'));
-  const cols=parseInt(prompt('Columns:','3'));
-  if(!rows||!cols) return;
-  let html='<table><thead><tr>';
-  for(let c=0;c<cols;c++) html+=`<th>Header ${c+1}</th>`;
-  html+='</tr></thead><tbody>';
-  for(let r=0;r<rows;r++){
-    html+='<tr>';
-    for(let c=0;c<cols;c++) html+='<td>Cell</td>';
-    html+='</tr>';
-  }
-  html+='</tbody></table>';
-  exec('insertHTML', html);
-}
-function insertQuote(){
-  const bq=document.createElement('blockquote');
-  bq.textContent='Quote text here';
-  insertNode(bq);
-}
-function insertLink(){
-  const url=prompt('URL:','https://');
-  if(url){ exec('createLink', url); }
-}
-function insertNode(node){
-  const sel=window.getSelection();
-  if(sel.rangeCount){
-    const range=sel.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(node);
-    range.setStartAfter(node);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-  editor.focus();
-}
-function toggleHtmlMode(){
-  htmlMode=!htmlMode;
-  const btn=document.getElementById('html-toggle-btn');
-  if(htmlMode){
-    htmlEd.value=editor.innerHTML;
-    editor.style.display='none';
-    htmlEd.style.display='block';
-    btn.classList.add('active');
-  } else {
-    editor.innerHTML=htmlEd.value;
-    editor.style.display='block';
-    htmlEd.style.display='none';
-    btn.classList.remove('active');
-  }
-}
-function saveKB(){
-  let content;
-  if(htmlMode) content=htmlEd.value;
-  else content=editor.innerHTML;
-  document.getElementById('content-hidden').value=content;
-  document.getElementById('kb-form').submit();
-}
-// Prevent form submit via enter on title
-document.querySelector('input[name="title"]').addEventListener('keydown',function(e){
-  if(e.key==='Enter'){e.preventDefault();editor.focus();}
-});
+
+  window.toggleHtmlMode = function(){
+    htmlMode=!htmlMode;
+    const btn=document.getElementById('html-toggle-btn');
+    if(htmlMode){
+      htmlEd.value=editor.innerHTML;
+      editor.style.display='none';
+      htmlEd.style.display='block';
+      btn.classList.add('active');
+    } else {
+      editor.innerHTML=htmlEd.value;
+      editor.style.display='block';
+      htmlEd.style.display='none';
+      btn.classList.remove('active');
+    }
+  };
+
+  window.saveKB = function(){
+    const content = htmlMode ? htmlEd.value : editor.innerHTML;
+    document.getElementById('content-hidden').value = content;
+    document.getElementById('kb-form').submit();
+  };
+
+  document.querySelector('input[name="title"]').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){ e.preventDefault(); editor.focus(); }
+  });
+})();
 </script>
 {% endblock %}
