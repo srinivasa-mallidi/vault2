@@ -368,6 +368,14 @@ button,input,select,textarea{font-family:var(--font)}
 
     <div class="sb-footer">
       <div class="sb-section" style="padding-top:0">Tools</div>
+      <a href="{{ url_for('postman') }}" class="sb-item {% if request.endpoint=='postman' %}active{% endif %}">
+        <svg class="sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12v8a2 2 0 01-2 2H4a2 2 0 01-2-2V4z"/><path d="M2 4l6 5 6-5"/></svg>
+        HTTP Client
+      </a>
+      <a href="{{ url_for('sql_tool') }}" class="sb-item {% if request.endpoint=='sql_tool' %}active{% endif %}">
+        <svg class="sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="8" cy="5" rx="6" ry="2"/><path d="M2 5v3c0 1.1 2.7 2 6 2s6-.9 6-2V5"/><path d="M2 8v3c0 1.1 2.7 2 6 2s6-.9 6-2V8"/></svg>
+        SQL Runner
+      </a>
       <a href="{{ url_for('csr_generator') }}" class="sb-item {% if request.endpoint=='csr_generator' %}active{% endif %}">
         <svg class="sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="10" height="8" rx="1"/><path d="M5 7V5a3 3 0 016 0v2"/><circle cx="8" cy="11" r="1.2" fill="currentColor" stroke="none"/></svg>
         CSR Generator

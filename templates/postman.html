@@ -1,0 +1,547 @@
+{% extends 'base.html' %}
+{% set all_projects = [] %}
+{% block title %}HTTP Client — SM Vault{% endblock %}
+
+{% block topbar %}
+<div class="topbar">
+  <div class="topbar-title">📨 HTTP Client</div>
+  <span style="font-size:12px;color:var(--c-text3)">Send API requests · Save configurations</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+:root{--pm-bg:#f5f5f3;--pm-surface:#fff;--pm-border:#e2e2df;--pm-border2:#d0d0cc;
+  --pm-text:#1a1a18;--pm-text2:#5a5a56;--pm-text3:#9a9a94;
+  --pm-blue:#1a5fb4;--pm-blue-bg:#eef3fc;
+  --pm-green:#2a7a3b;--pm-green-bg:#eef7f1;
+  --pm-red:#9a1a1a;--pm-red-bg:#fdf0f0;
+  --pm-orange:#7a4a10;--pm-orange-bg:#fef3e8;
+  --pm-radius:8px;--pm-mono:'Courier New',Courier,monospace}
+.pm-layout{display:grid;grid-template-columns:260px 1fr;height:calc(100vh - 110px);overflow:hidden}
+
+/* LEFT PANEL — saved configs */
+.pm-sidebar{border-right:1px solid var(--pm-border);overflow-y:auto;display:flex;flex-direction:column;background:#fafaf9}
+.pm-sidebar-hdr{padding:12px 14px;border-bottom:1px solid var(--pm-border);display:flex;align-items:center;justify-content:space-between;background:var(--pm-surface);position:sticky;top:0;z-index:10}
+.pm-sidebar-hdr span{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--pm-text3)}
+.pm-new-btn{background:var(--pm-blue);color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+.pm-new-btn:hover{opacity:.85}
+.pm-cfg-list{flex:1;padding:8px}
+.pm-cfg-item{border-radius:6px;padding:8px 10px;cursor:pointer;margin-bottom:2px;border:1px solid transparent;transition:all .12s;position:relative}
+.pm-cfg-item:hover{background:var(--pm-surface);border-color:var(--pm-border)}
+.pm-cfg-item.active{background:var(--pm-blue-bg);border-color:rgba(26,95,180,.25)}
+.pm-cfg-name{font-size:12px;font-weight:600;color:var(--pm-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pm-cfg-meta{font-size:10px;color:var(--pm-text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pm-cfg-del{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--pm-text3);padding:3px;border-radius:3px;display:none;font-size:13px}
+.pm-cfg-item:hover .pm-cfg-del{display:block}
+.pm-cfg-del:hover{color:var(--pm-red);background:var(--pm-red-bg)}
+.pm-method-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-right:4px;letter-spacing:.04em}
+.m-get{background:#e8f5e9;color:#1b5e20}.m-post{background:#e3f2fd;color:#0d47a1}
+.m-put{background:#fff3e0;color:#e65100}.m-patch{background:#f3e5f5;color:#4a148c}
+.m-delete{background:#ffebee;color:#b71c1c}.m-options,.m-head{background:#f5f5f5;color:#616161}
+.pm-empty-msg{padding:24px 14px;text-align:center;color:var(--pm-text3);font-size:12px}
+
+/* RIGHT PANEL */
+.pm-main{overflow-y:auto;display:flex;flex-direction:column}
+.pm-request-area{padding:20px;flex-shrink:0}
+
+/* URL bar */
+.pm-url-row{display:flex;gap:8px;margin-bottom:16px}
+.pm-method-sel{padding:9px 10px;border:1px solid var(--pm-border2);border-radius:6px;font-size:13px;font-weight:700;background:var(--pm-surface);color:var(--pm-text);cursor:pointer;font-family:inherit;min-width:95px}
+.pm-url-inp{flex:1;padding:9px 14px;border:1px solid var(--pm-border2);border-radius:6px;font-size:13px;font-family:var(--pm-mono);background:var(--pm-surface);color:var(--pm-text);outline:none}
+.pm-url-inp:focus{border-color:var(--pm-blue);box-shadow:0 0 0 3px rgba(26,95,180,.1)}
+.pm-send-btn{padding:9px 22px;background:#e85d04;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;transition:opacity .15s}
+.pm-send-btn:hover{opacity:.88}
+.pm-send-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Tabs */
+.pm-tabs{display:flex;gap:0;border-bottom:1px solid var(--pm-border);margin-bottom:16px}
+.pm-tab{padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--pm-text2);background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;transition:color .12s}
+.pm-tab:hover{color:var(--pm-text)}
+.pm-tab.active{color:var(--pm-blue);border-bottom-color:var(--pm-blue)}
+.pm-tab-badge{background:var(--pm-blue-bg);color:var(--pm-blue);border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px}
+.pm-tab-panel{display:none}
+.pm-tab-panel.active{display:block}
+
+/* Key-value editor */
+.kv-table{width:100%;border-collapse:collapse}
+.kv-table th{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--pm-text3);padding:6px 8px;text-align:left;border-bottom:1px solid var(--pm-border)}
+.kv-table td{padding:3px 4px;vertical-align:middle}
+.kv-inp{width:100%;padding:5px 8px;border:1px solid transparent;border-radius:4px;font-size:12px;font-family:var(--pm-mono);background:transparent;color:var(--pm-text);outline:none}
+.kv-inp:focus{border-color:var(--pm-blue);background:var(--pm-surface);box-shadow:0 0 0 2px rgba(26,95,180,.08)}
+.kv-del-btn{background:none;border:none;cursor:pointer;color:var(--pm-text3);padding:4px;border-radius:3px;font-size:14px}
+.kv-del-btn:hover{color:var(--pm-red);background:var(--pm-red-bg)}
+.kv-add-row{margin-top:8px}
+.btn-kv-add{background:none;border:1px dashed var(--pm-border2);border-radius:5px;padding:5px 12px;font-size:11px;color:var(--pm-text2);cursor:pointer;font-family:inherit}
+.btn-kv-add:hover{border-color:var(--pm-blue);color:var(--pm-blue);background:var(--pm-blue-bg)}
+
+/* Body editor */
+.pm-body-type-row{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.pm-body-radio label{display:flex;align-items:center;gap:5px;padding:5px 12px;border:1px solid var(--pm-border2);border-radius:5px;cursor:pointer;font-size:12px;color:var(--pm-text2);transition:all .12s}
+.pm-body-radio input{display:none}
+.pm-body-radio input:checked + label{background:var(--pm-blue-bg);border-color:rgba(26,95,180,.35);color:var(--pm-blue);font-weight:600}
+.pm-body-textarea{width:100%;min-height:160px;padding:10px 12px;border:1px solid var(--pm-border2);border-radius:6px;font-size:12px;font-family:var(--pm-mono);background:#1e1e1e;color:#d4d4d4;outline:none;resize:vertical;line-height:1.6}
+.pm-body-textarea:focus{border-color:var(--pm-blue)}
+
+/* Auth */
+.pm-auth-type-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.pm-auth-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pm-field label{display:block;font-size:11px;font-weight:600;color:var(--pm-text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.pm-field input,.pm-field select{width:100%;padding:8px 10px;border:1px solid var(--pm-border2);border-radius:5px;font-size:12px;font-family:inherit;background:var(--pm-surface);color:var(--pm-text);outline:none}
+.pm-field input:focus,.pm-field select:focus{border-color:var(--pm-blue);box-shadow:0 0 0 2px rgba(26,95,180,.1)}
+
+/* Description / Save bar */
+.pm-save-bar{display:flex;gap:10px;align-items:flex-end;padding:14px 20px;border-top:1px solid var(--pm-border);background:var(--pm-surface);flex-shrink:0}
+.pm-save-bar .pm-field{flex:1}
+.pm-save-bar input{padding:7px 10px;font-size:12px}
+.pm-save-cfg-btn{padding:8px 18px;background:var(--pm-blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.pm-save-cfg-btn:hover{opacity:.85}
+
+/* Response area */
+.pm-response{flex:1;padding:0 20px 20px;min-height:300px}
+.pm-resp-bar{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:6px 6px 0 0;border:1px solid var(--pm-border);border-bottom:none;background:var(--pm-surface)}
+.pm-status-pill{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
+.s-2xx{background:#e8f5e9;color:#2e7d32}.s-3xx{background:#e3f2fd;color:#1565c0}
+.s-4xx{background:#fff3e0;color:#e65100}.s-5xx{background:#ffebee;color:#c62828}.s-err{background:#fce4ec;color:#880e4f}
+.pm-resp-meta{font-size:11px;color:var(--pm-text3)}
+.pm-resp-tabs{display:flex;border:1px solid var(--pm-border);border-top:none;border-bottom:none;background:var(--pm-surface)}
+.pm-resp-tab{padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;color:var(--pm-text2);background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+.pm-resp-tab.active{color:var(--pm-blue);border-bottom-color:var(--pm-blue)}
+.pm-resp-body{border:1px solid var(--pm-border);border-top:none;border-radius:0 0 6px 6px;background:#1e1e1e;padding:14px;font-family:var(--pm-mono);font-size:11.5px;line-height:1.65;color:#d4d4d4;min-height:200px;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;display:none}
+.pm-resp-body.active{display:block}
+.pm-resp-hdrs-tbl{border:1px solid var(--pm-border);border-top:none;border-radius:0 0 6px 6px;overflow:hidden;display:none}
+.pm-resp-hdrs-tbl.active{display:block}
+.pm-resp-hdrs-tbl table{width:100%;border-collapse:collapse}
+.pm-resp-hdrs-tbl td{padding:6px 12px;font-size:11px;border-bottom:1px solid var(--pm-border);font-family:var(--pm-mono)}
+.pm-resp-hdrs-tbl td:first-child{color:var(--pm-text2);width:35%;font-weight:600}
+.pm-resp-hdrs-tbl td:last-child{color:var(--pm-text)}
+.pm-idle-msg{border:1px solid var(--pm-border);border-top:none;border-radius:0 0 6px 6px;padding:40px;text-align:center;color:var(--pm-text3);font-size:13px;display:block}
+.pm-idle-msg svg{width:32px;height:32px;margin:0 auto 10px;display:block;opacity:.3}
+.pm-spinner{border:3px solid rgba(26,95,180,.15);border-top-color:var(--pm-blue);border-radius:50%;width:18px;height:18px;animation:pm-spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+@keyframes pm-spin{to{transform:rotate(360deg)}}
+
+/* Save name modal */
+.pm-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center}
+.pm-modal-bg.open{display:flex}
+.pm-modal{background:#fff;border-radius:10px;padding:24px;min-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.pm-modal h3{font-size:16px;font-weight:700;margin-bottom:16px}
+.pm-modal input{width:100%;padding:9px 12px;border:1px solid var(--pm-border2);border-radius:6px;font-size:14px;font-family:inherit;outline:none;margin-bottom:12px}
+.pm-modal input:focus{border-color:var(--pm-blue)}
+.pm-modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.pm-modal-cancel{padding:7px 16px;border:1px solid var(--pm-border2);border-radius:6px;background:none;cursor:pointer;font-size:13px;font-family:inherit}
+.pm-modal-ok{padding:7px 20px;background:var(--pm-blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit}
+
+@media(max-width:700px){.pm-layout{grid-template-columns:1fr;height:auto}.pm-sidebar{height:200px}}
+</style>
+
+<!-- Save Config Modal -->
+<div class="pm-modal-bg" id="pm-save-modal">
+  <div class="pm-modal">
+    <h3 id="pm-modal-title">Save Configuration</h3>
+    <input type="text" id="pm-save-name" placeholder="Config name…" />
+    <textarea style="width:100%;padding:8px 12px;border:1px solid #d0d0cc;border-radius:6px;font-size:12px;font-family:inherit;resize:none;height:64px;outline:none;margin-bottom:12px" id="pm-save-desc" placeholder="Description (optional)"></textarea>
+    <div class="pm-modal-btns">
+      <button class="pm-modal-cancel" onclick="closeSaveModal()">Cancel</button>
+      <button class="pm-modal-ok" onclick="confirmSave()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="pm-layout" style="margin:0">
+  <!-- LEFT: saved configs -->
+  <div class="pm-sidebar">
+    <div class="pm-sidebar-hdr">
+      <span>Saved ({{ configs|length }})</span>
+      <button class="pm-new-btn" onclick="newRequest()">+ New</button>
+    </div>
+    <div class="pm-cfg-list" id="pm-cfg-list">
+      {% if not configs %}
+      <div class="pm-empty-msg">No saved configs yet.<br>Send a request and save it.</div>
+      {% endif %}
+      {% for c in configs %}
+      <div class="pm-cfg-item" id="cfg-{{ c.id }}" onclick="loadConfig({{ c.id }})">
+        <div class="pm-cfg-name">
+          <span class="pm-method-badge m-{{ c.method.lower() }}">{{ c.method }}</span>{{ c.name }}
+        </div>
+        <div class="pm-cfg-meta">{{ c.url[:50] }}{% if c.url|length > 50 %}…{% endif %}</div>
+        <button class="pm-cfg-del" title="Delete" onclick="delConfig(event, {{ c.id }})">×</button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- RIGHT: request builder -->
+  <div class="pm-main">
+    <div class="pm-request-area">
+      <!-- URL bar -->
+      <div class="pm-url-row">
+        <select class="pm-method-sel" id="pm-method" onchange="updateMethodColor()">
+          <option>GET</option><option>POST</option><option>PUT</option>
+          <option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+        </select>
+        <input class="pm-url-inp" id="pm-url" placeholder="https://api.example.com/endpoint" />
+        <button class="pm-send-btn" id="pm-send-btn" onclick="sendRequest()">Send</button>
+      </div>
+
+      <!-- Request tabs -->
+      <div class="pm-tabs">
+        <button class="pm-tab active" onclick="switchTab(this,'pm-tab-params')">Params</button>
+        <button class="pm-tab" onclick="switchTab(this,'pm-tab-headers')">Headers <span class="pm-tab-badge" id="hdr-count">0</span></button>
+        <button class="pm-tab" onclick="switchTab(this,'pm-tab-body')">Body</button>
+        <button class="pm-tab" onclick="switchTab(this,'pm-tab-auth')">Auth</button>
+      </div>
+
+      <!-- Params tab -->
+      <div class="pm-tab-panel active" id="pm-tab-params">
+        <table class="kv-table">
+          <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
+          <tbody id="params-tbody"></tbody>
+        </table>
+        <div class="kv-add-row"><button class="btn-kv-add" onclick="addKvRow('params-tbody')">+ Add param</button></div>
+      </div>
+
+      <!-- Headers tab -->
+      <div class="pm-tab-panel" id="pm-tab-headers">
+        <table class="kv-table">
+          <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
+          <tbody id="headers-tbody"></tbody>
+        </table>
+        <div class="kv-add-row"><button class="btn-kv-add" onclick="addKvRow('headers-tbody')">+ Add header</button></div>
+      </div>
+
+      <!-- Body tab -->
+      <div class="pm-tab-panel" id="pm-tab-body">
+        <div class="pm-body-type-row" id="body-type-row">
+          {% for t in [('none','None'),('json','JSON'),('form','Form URL-encoded'),('raw','Raw Text')] %}
+          <div class="pm-body-radio">
+            <input type="radio" name="bodytype" id="bt-{{ t[0] }}" value="{{ t[0] }}" {% if t[0]=='json' %}checked{% endif %} onchange="switchBodyType()">
+            <label for="bt-{{ t[0] }}">{{ t[1] }}</label>
+          </div>
+          {% endfor %}
+        </div>
+        <textarea class="pm-body-textarea" id="pm-body" placeholder='{"key": "value"}'></textarea>
+      </div>
+
+      <!-- Auth tab -->
+      <div class="pm-tab-panel" id="pm-tab-auth">
+        <div class="pm-auth-type-row" id="auth-type-row">
+          {% for t in [('none','No Auth'),('basic','Basic'),('bearer','Bearer Token'),('apikey','API Key')] %}
+          <div class="pm-body-radio">
+            <input type="radio" name="authtype" id="at-{{ t[0] }}" value="{{ t[0] }}" {% if t[0]=='none' %}checked{% endif %} onchange="switchAuthType()">
+            <label for="at-{{ t[0] }}">{{ t[1] }}</label>
+          </div>
+          {% endfor %}
+        </div>
+        <div id="auth-fields-basic" class="pm-auth-fields" style="display:none">
+          <div class="pm-field"><label>Username</label><input type="text" id="auth-basic-user" /></div>
+          <div class="pm-field"><label>Password</label><input type="password" id="auth-basic-pass" /></div>
+        </div>
+        <div id="auth-fields-bearer" style="display:none">
+          <div class="pm-field"><label>Token</label><input type="text" id="auth-bearer-token" placeholder="eyJhbGci…" style="width:100%;padding:8px 10px;border:1px solid #d0d0cc;border-radius:5px;font-family:'Courier New',monospace;font-size:12px;outline:none"/></div>
+        </div>
+        <div id="auth-fields-apikey" class="pm-auth-fields" style="display:none">
+          <div class="pm-field"><label>Key Name</label><input type="text" id="auth-key-name" placeholder="X-API-Key" /></div>
+          <div class="pm-field"><label>Value</label><input type="text" id="auth-key-value" /></div>
+          <div class="pm-field"><label>Send In</label>
+            <select id="auth-key-in" style="width:100%;padding:8px 10px;border:1px solid #d0d0cc;border-radius:5px;font-size:12px;font-family:inherit;outline:none">
+              <option value="header">Header</option><option value="query">Query Param</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save bar -->
+    <div class="pm-save-bar">
+      <div class="pm-field" style="max-width:280px">
+        <label style="font-size:11px;font-weight:600;color:var(--pm-text2);margin-bottom:4px;display:block">CONFIG NAME</label>
+        <input type="text" id="pm-cfg-name" placeholder="Name this request to save…" />
+      </div>
+      <button class="pm-save-cfg-btn" onclick="openSaveModal()">💾 Save Config</button>
+      <span id="pm-save-status" style="font-size:11px;color:var(--pm-green)"></span>
+    </div>
+
+    <!-- Response -->
+    <div class="pm-response">
+      <div class="pm-resp-bar" id="pm-resp-bar" style="display:none">
+        <span class="pm-status-pill" id="pm-resp-status"></span>
+        <span class="pm-resp-meta" id="pm-resp-time"></span>
+        <span class="pm-resp-meta" id="pm-resp-size"></span>
+        <button onclick="copyRespBody()" style="margin-left:auto;background:none;border:1px solid #d0d0cc;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--pm-text2)">Copy</button>
+      </div>
+      <div class="pm-resp-tabs" id="pm-resp-tabs" style="display:none">
+        <button class="pm-resp-tab active" onclick="switchRespTab(this,'pm-resp-body-wrap')">Body</button>
+        <button class="pm-resp-tab" onclick="switchRespTab(this,'pm-resp-hdrs-wrap')">Headers</button>
+      </div>
+      <pre class="pm-resp-body active" id="pm-resp-body-wrap"></pre>
+      <div class="pm-resp-hdrs-tbl" id="pm-resp-hdrs-wrap"><table id="pm-resp-hdrs-tbody"></table></div>
+      <div class="pm-idle-msg" id="pm-idle-msg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+        Hit Send to see the response
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var _activeCfgId = null;
+
+// ── KV TABLE ────────────────────────────────────────────────────────────────
+function addKvRow(tbodyId, k, v){
+  var tb = document.getElementById(tbodyId);
+  var tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td><input class="kv-inp" placeholder="Key" value="'+(k||'')+'" onchange="updateHdrCount()"/></td>'+
+    '<td><input class="kv-inp" placeholder="Value" value="'+(v||'')+'"/></td>'+
+    '<td><button class="kv-del-btn" onclick="this.closest(\'tr\').remove();updateHdrCount()">×</button></td>';
+  tb.appendChild(tr);
+  if(tbodyId==='headers-tbody') updateHdrCount();
+}
+
+function getKvRows(tbodyId){
+  var obj={};
+  document.querySelectorAll('#'+tbodyId+' tr').forEach(function(tr){
+    var inps=tr.querySelectorAll('input');
+    if(inps.length>=2&&inps[0].value.trim()) obj[inps[0].value.trim()]=inps[1].value;
+  });
+  return obj;
+}
+
+function updateHdrCount(){
+  var n=document.querySelectorAll('#headers-tbody tr').length;
+  document.getElementById('hdr-count').textContent=n||'0';
+}
+
+// ── TABS ────────────────────────────────────────────────────────────────────
+function switchTab(btn,panelId){
+  btn.closest('.pm-request-area').querySelectorAll('.pm-tab').forEach(function(b){b.classList.remove('active')});
+  btn.closest('.pm-request-area').querySelectorAll('.pm-tab-panel').forEach(function(p){p.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+
+function switchBodyType(){
+  var none=document.querySelector('input[name="bodytype"]:checked').value==='none';
+  document.getElementById('pm-body').style.display=none?'none':'block';
+}
+
+function switchAuthType(){
+  var t=document.querySelector('input[name="authtype"]:checked').value;
+  ['basic','bearer','apikey'].forEach(function(k){
+    document.getElementById('auth-fields-'+k).style.display=t===k?'':'none';
+  });
+}
+
+function switchRespTab(btn, panelId){
+  document.querySelectorAll('.pm-resp-tab').forEach(function(b){b.classList.remove('active')});
+  document.querySelectorAll('.pm-resp-body,.pm-resp-hdrs-tbl').forEach(function(p){p.classList.remove('active')});
+  btn.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+
+// ── METHOD COLOR ─────────────────────────────────────────────────────────────
+function updateMethodColor(){}
+
+// ── BUILD REQUEST PAYLOAD ─────────────────────────────────────────────────
+function buildPayload(){
+  var method = document.getElementById('pm-method').value;
+  var url    = document.getElementById('pm-url').value.trim();
+  // Merge query params into URL
+  var params = getKvRows('params-tbody');
+  if(Object.keys(params).length){
+    var qs = Object.entries(params).map(function(e){return encodeURIComponent(e[0])+'='+encodeURIComponent(e[1])}).join('&');
+    url += (url.indexOf('?')<0?'?':'&')+qs;
+  }
+  var hdrs   = getKvRows('headers-tbody');
+  var body   = document.getElementById('pm-body').value;
+  var btype  = document.querySelector('input[name="bodytype"]:checked').value;
+  var atype  = document.querySelector('input[name="authtype"]:checked').value;
+  var adata  = {};
+  if(atype==='basic'){adata={username:document.getElementById('auth-basic-user').value,password:document.getElementById('auth-basic-pass').value}}
+  else if(atype==='bearer'){adata={token:document.getElementById('auth-bearer-token').value}}
+  else if(atype==='apikey'){adata={key:document.getElementById('auth-key-name').value,value:document.getElementById('auth-key-value').value,in:document.getElementById('auth-key-in').value}}
+  return {method,url,headers:JSON.stringify(hdrs),body,body_type:btype,auth_type:atype,auth_data:JSON.stringify(adata)};
+}
+
+// ── SEND ─────────────────────────────────────────────────────────────────────
+function sendRequest(){
+  var btn=document.getElementById('pm-send-btn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="pm-spinner"></span>Sending…';
+  document.getElementById('pm-idle-msg').style.display='none';
+  document.getElementById('pm-resp-bar').style.display='none';
+  document.getElementById('pm-resp-tabs').style.display='none';
+  document.getElementById('pm-resp-body-wrap').classList.remove('active');
+  document.getElementById('pm-resp-hdrs-wrap').classList.remove('active');
+
+  var payload = buildPayload();
+  fetch('/tools/postman/send', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  }).then(function(r){return r.json()}).then(function(d){
+    btn.disabled=false; btn.innerHTML='Send';
+    showResponse(d);
+  }).catch(function(e){
+    btn.disabled=false; btn.innerHTML='Send';
+    showResponse({ok:false,error:String(e)});
+  });
+}
+
+function showResponse(d){
+  var bar=document.getElementById('pm-resp-bar');
+  var tabs=document.getElementById('pm-resp-tabs');
+  bar.style.display='flex'; tabs.style.display='flex';
+
+  var pill=document.getElementById('pm-resp-status');
+  if(d.ok){
+    var s=d.status;
+    pill.textContent=s;
+    pill.className='pm-status-pill '+( s<300?'s-2xx':s<400?'s-3xx':s<500?'s-4xx':'s-5xx');
+    document.getElementById('pm-resp-time').textContent=d.elapsed+'ms';
+    document.getElementById('pm-resp-size').textContent=formatBytes(d.size);
+    document.getElementById('pm-resp-body-wrap').textContent=d.body||'(empty body)';
+    // Headers table
+    var htbl=document.getElementById('pm-resp-hdrs-tbody');
+    htbl.innerHTML='';
+    Object.entries(d.headers||{}).forEach(function(e){
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td>'+e[0]+'</td><td>'+e[1]+'</td>';
+      htbl.appendChild(tr);
+    });
+  } else {
+    pill.textContent='Error'; pill.className='pm-status-pill s-err';
+    document.getElementById('pm-resp-time').textContent='';
+    document.getElementById('pm-resp-size').textContent='';
+    document.getElementById('pm-resp-body-wrap').textContent=d.error||'Unknown error';
+  }
+  document.getElementById('pm-resp-body-wrap').classList.add('active');
+  document.getElementById('pm-resp-hdrs-wrap').classList.remove('active');
+  document.querySelectorAll('.pm-resp-tab').forEach(function(b,i){b.classList.toggle('active',i===0)});
+}
+
+function formatBytes(n){
+  if(!n) return '';
+  if(n<1024) return n+' B';
+  if(n<1048576) return (n/1024).toFixed(1)+' KB';
+  return (n/1048576).toFixed(1)+' MB';
+}
+
+function copyRespBody(){
+  navigator.clipboard.writeText(document.getElementById('pm-resp-body-wrap').textContent)
+    .then(function(){showToast('Response copied ✓')});
+}
+
+// ── SAVE CONFIG ──────────────────────────────────────────────────────────────
+function openSaveModal(){
+  var nm=document.getElementById('pm-cfg-name').value.trim();
+  if(!nm){showToast('Enter a config name first', 2500);return;}
+  document.getElementById('pm-save-name').value=nm;
+  document.getElementById('pm-save-desc').value='';
+  document.getElementById('pm-modal-title').textContent=_activeCfgId?'Update Configuration':'Save Configuration';
+  document.getElementById('pm-save-modal').classList.add('open');
+  setTimeout(function(){document.getElementById('pm-save-name').focus()},100);
+}
+function closeSaveModal(){document.getElementById('pm-save-modal').classList.remove('open')}
+
+function confirmSave(){
+  var name=document.getElementById('pm-save-name').value.trim();
+  var desc=document.getElementById('pm-save-desc').value.trim();
+  if(!name){showToast('Name required');return;}
+  var p=buildPayload();
+  var payload=Object.assign(p,{
+    id:_activeCfgId||null,
+    name:name, description:desc
+  });
+  fetch('/tools/postman/config/save',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)
+  }).then(function(r){return r.json()}).then(function(d){
+    closeSaveModal();
+    document.getElementById('pm-save-status').textContent='✓ Saved';
+    setTimeout(function(){document.getElementById('pm-save-status').textContent=''},2500);
+    _activeCfgId=d.id;
+    document.getElementById('pm-cfg-name').value=d.name;
+    refreshCfgList();
+  });
+}
+
+function refreshCfgList(){
+  location.reload(); // simple reload to refresh sidebar
+}
+
+// ── LOAD CONFIG ──────────────────────────────────────────────────────────────
+function loadConfig(id){
+  fetch('/tools/postman/config/'+id).then(function(r){return r.json()}).then(function(c){
+    _activeCfgId=c.id;
+    document.getElementById('pm-method').value=c.method;
+    document.getElementById('pm-url').value=c.url;
+    document.getElementById('pm-cfg-name').value=c.name;
+    document.getElementById('pm-body').value=c.body||'';
+
+    // body type
+    var bt=c.body_type||'json';
+    var btEl=document.getElementById('bt-'+bt);
+    if(btEl){btEl.checked=true; switchBodyType();}
+
+    // headers
+    document.getElementById('headers-tbody').innerHTML='';
+    try{ var hdrs=JSON.parse(c.headers||'{}');
+      Object.entries(hdrs).forEach(function(e){addKvRow('headers-tbody',e[0],e[1])});
+    }catch(e){}
+    updateHdrCount();
+
+    // auth
+    var at=c.auth_type||'none';
+    var atEl=document.getElementById('at-'+at);
+    if(atEl){atEl.checked=true; switchAuthType();}
+    try{ var ad=JSON.parse(c.auth_data||'{}');
+      if(at==='basic'){document.getElementById('auth-basic-user').value=ad.username||'';document.getElementById('auth-basic-pass').value=ad.password||'';}
+      else if(at==='bearer'){document.getElementById('auth-bearer-token').value=ad.token||'';}
+      else if(at==='apikey'){document.getElementById('auth-key-name').value=ad.key||'X-API-Key';document.getElementById('auth-key-value').value=ad.value||'';document.getElementById('auth-key-in').value=ad.in||'header';}
+    }catch(e){}
+
+    // highlight in sidebar
+    document.querySelectorAll('.pm-cfg-item').forEach(function(el){el.classList.remove('active')});
+    var el=document.getElementById('cfg-'+id);
+    if(el){el.classList.add('active');el.scrollIntoView({block:'nearest'});}
+  });
+}
+
+// ── DELETE CONFIG ─────────────────────────────────────────────────────────────
+function delConfig(e, id){
+  e.stopPropagation();
+  if(!confirm('Delete this saved config?')) return;
+  fetch('/tools/postman/config/'+id+'/delete',{method:'POST'}).then(function(){
+    var el=document.getElementById('cfg-'+id);
+    if(el) el.remove();
+    if(_activeCfgId===id){ _activeCfgId=null; }
+    showToast('Config deleted');
+  });
+}
+
+function newRequest(){
+  _activeCfgId=null;
+  document.getElementById('pm-method').value='GET';
+  document.getElementById('pm-url').value='';
+  document.getElementById('pm-cfg-name').value='';
+  document.getElementById('pm-body').value='';
+  document.getElementById('headers-tbody').innerHTML='';
+  document.getElementById('params-tbody').innerHTML='';
+  document.getElementById('at-none').checked=true; switchAuthType();
+  document.getElementById('bt-json').checked=true; switchBodyType();
+  document.querySelectorAll('.pm-cfg-item').forEach(function(el){el.classList.remove('active')});
+  updateHdrCount();
+}
+
+// ── ENTER TO SEND ─────────────────────────────────────────────────────────────
+document.getElementById('pm-url').addEventListener('keydown',function(e){if(e.key==='Enter')sendRequest()});
+
+// Init
+switchBodyType();
+switchAuthType();
+// Add default headers
+addKvRow('headers-tbody','Content-Type','application/json');
+addKvRow('headers-tbody','Accept','application/json');
+updateHdrCount();
+</script>
+{% endblock %}

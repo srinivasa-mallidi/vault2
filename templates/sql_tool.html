@@ -1,0 +1,513 @@
+{% extends 'base.html' %}
+{% set all_projects = [] %}
+{% block title %}SQL Runner — SM Vault{% endblock %}
+
+{% block topbar %}
+<div class="topbar">
+  <div class="topbar-title">🗄️ SQL Runner</div>
+  <span style="font-size:12px;color:var(--c-text3)">Execute queries · Save connections &amp; queries</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+.sql-layout{display:grid;grid-template-columns:280px 1fr;height:calc(100vh - 110px);overflow:hidden}
+
+/* LEFT PANEL */
+.sql-left{border-right:1px solid var(--c-border);overflow-y:auto;background:#fafaf9;display:flex;flex-direction:column}
+.sql-panel-hdr{padding:10px 14px;border-bottom:1px solid var(--c-border);background:var(--c-surface);position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between}
+.sql-panel-hdr span{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--c-text3)}
+.sql-section{padding:8px}
+.sql-conn-item{border-radius:6px;padding:8px 10px;cursor:pointer;margin-bottom:2px;border:1px solid transparent;transition:all .12s;position:relative}
+.sql-conn-item:hover{background:var(--c-surface);border-color:var(--c-border)}
+.sql-conn-item.active{background:#eef3fc;border-color:rgba(26,95,180,.25)}
+.sql-conn-name{font-size:12px;font-weight:600;color:var(--c-text)}
+.sql-conn-meta{font-size:10px;color:var(--c-text3);margin-top:2px}
+.sql-conn-del{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--c-text3);padding:3px;border-radius:3px;display:none;font-size:13px}
+.sql-conn-item:hover .sql-conn-del{display:block}
+.sql-conn-del:hover{color:var(--c-red);background:var(--c-red-bg)}
+.sql-dbtype-pill{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-right:4px;letter-spacing:.03em}
+.db-oracle{background:#fef3e8;color:#7a4a10}
+.db-mssql{background:#e3f2fd;color:#0d47a1}
+.db-mysql{background:#e8f5e9;color:#1b5e20}
+.db-postgres{background:#ede7f6;color:#4527a0}
+.db-sqlite{background:#f3e5f5;color:#6a1b9a}
+.sql-subsec-hdr{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--c-text3);padding:10px 2px 6px;display:flex;align-items:center;justify-content:space-between}
+.sql-query-item{border-radius:5px;padding:7px 9px;cursor:pointer;margin-bottom:2px;border:1px solid transparent;transition:all .12s;position:relative}
+.sql-query-item:hover{background:var(--c-surface);border-color:var(--c-border)}
+.sql-query-item.active{background:#eef3fc;border-color:rgba(26,95,180,.25)}
+.sql-query-name{font-size:11px;font-weight:600;color:var(--c-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sql-query-meta{font-size:10px;color:var(--c-text3);margin-top:1px}
+.sql-query-del{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--c-text3);font-size:12px;display:none;padding:2px;border-radius:3px}
+.sql-query-item:hover .sql-query-del{display:block}
+.sql-query-del:hover{color:var(--c-red)}
+.btn-sql-new{background:var(--c-blue);color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-sql-new:hover{opacity:.85}
+
+/* RIGHT PANEL */
+.sql-main{overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+.sql-conn-form{padding:18px 20px;border-bottom:1px solid var(--c-border);background:var(--c-surface);flex-shrink:0}
+.sql-conn-row1{display:grid;grid-template-columns:140px 1fr 90px 1fr 1fr;gap:10px;margin-bottom:10px;align-items:end}
+.sql-conn-row2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end}
+.sql-fld label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--c-text3);margin-bottom:4px}
+.sql-fld input,.sql-fld select{width:100%;padding:7px 9px;border:1px solid var(--c-border2);border-radius:5px;font-size:12px;font-family:inherit;background:var(--c-surface);color:var(--c-text);outline:none}
+.sql-fld input:focus,.sql-fld select:focus{border-color:var(--c-blue);box-shadow:0 0 0 2px rgba(26,95,180,.1)}
+.sql-save-conn-row{display:flex;gap:8px;align-items:center;margin-top:10px}
+.sql-save-conn-row input{flex:1;max-width:260px;padding:6px 10px;border:1px solid var(--c-border2);border-radius:5px;font-size:12px;font-family:inherit;outline:none}
+.sql-save-conn-row input:focus{border-color:var(--c-blue)}
+.btn-save-conn{padding:6px 16px;background:var(--c-blue);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-save-conn:hover{opacity:.85}
+.btn-test-conn{padding:6px 16px;background:none;border:1px solid var(--c-border2);border-radius:5px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--c-text2)}
+.btn-test-conn:hover{border-color:var(--c-blue);color:var(--c-blue)}
+.conn-status{font-size:11px;padding:4px 10px;border-radius:4px}
+.conn-ok{background:#eef7f1;color:#2a7a3b}
+.conn-fail{background:#fdf0f0;color:#9a1a1a}
+
+/* Query area */
+.sql-editor-area{padding:16px 20px;flex-shrink:0;border-bottom:1px solid var(--c-border)}
+.sql-editor-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.sql-editor-top select{padding:6px 10px;border:1px solid var(--c-border2);border-radius:5px;font-size:12px;font-family:inherit;outline:none;min-width:120px}
+.sql-editor-top input{flex:1;max-width:260px;padding:6px 10px;border:1px solid var(--c-border2);border-radius:5px;font-size:12px;font-family:inherit;outline:none}
+.sql-editor-top input:focus{border-color:var(--c-blue)}
+.sql-textarea{width:100%;min-height:140px;padding:12px 14px;border:1px solid var(--c-border2);border-radius:6px;font-size:12.5px;font-family:'Courier New',Courier,monospace;background:#1e1e1e;color:#d4d4d4;outline:none;resize:vertical;line-height:1.65;tab-size:4}
+.sql-textarea:focus{border-color:var(--c-blue)}
+.sql-run-row{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.btn-run{padding:8px 22px;background:#2a7a3b;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px}
+.btn-run:hover{opacity:.88}
+.btn-run:disabled{opacity:.5;cursor:not-allowed}
+.btn-save-query{padding:7px 16px;background:none;border:1px solid var(--c-border2);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--c-text2)}
+.btn-save-query:hover{border-color:var(--c-blue);color:var(--c-blue)}
+.sql-maxrows{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--c-text2)}
+.sql-maxrows input{width:70px;padding:5px 8px;border:1px solid var(--c-border2);border-radius:4px;font-size:12px;font-family:inherit;text-align:center;outline:none}
+.sql-shortcut{font-size:10px;color:var(--c-text3)}
+
+/* Results */
+.sql-results{flex:1;padding:16px 20px;overflow-y:auto}
+.sql-result-block{margin-bottom:20px}
+.sql-result-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.sql-result-title{font-size:13px;font-weight:700;color:var(--c-text)}
+.sql-result-pill{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.rp-select{background:#eef3fc;color:#1a5fb4}.rp-ok{background:#eef7f1;color:#2a7a3b}.rp-err{background:#fdf0f0;color:#9a1a1a}
+.sql-elapsed{font-size:11px;color:var(--c-text3)}
+.sql-tbl-wrap{overflow-x:auto;border:1px solid var(--c-border);border-radius:6px}
+.sql-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.sql-tbl th{background:#f0f0ee;padding:7px 12px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--c-text2);border-bottom:1px solid var(--c-border);white-space:nowrap;position:sticky;top:0}
+.sql-tbl td{padding:6px 12px;border-bottom:1px solid var(--c-border);font-family:'Courier New',Courier,monospace;font-size:11.5px;color:var(--c-text);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sql-tbl tr:last-child td{border-bottom:none}
+.sql-tbl tr:hover td{background:#fafaf9}
+.sql-null{color:var(--c-text3);font-style:italic}
+.sql-export-btn{padding:5px 12px;background:none;border:1px solid var(--c-border2);border-radius:4px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--c-text2)}
+.sql-export-btn:hover{border-color:var(--c-blue);color:var(--c-blue)}
+.sql-truncated-note{font-size:11px;color:var(--c-orange);margin-top:6px}
+.sql-idle{padding:40px;text-align:center;color:var(--c-text3);font-size:13px}
+.sql-idle svg{width:36px;height:36px;margin:0 auto 12px;display:block;opacity:.25}
+.sql-spinner{border:3px solid rgba(42,122,59,.15);border-top-color:#2a7a3b;border-radius:50%;width:16px;height:16px;animation:sql-spin .7s linear infinite;display:inline-block;vertical-align:middle}
+@keyframes sql-spin{to{transform:rotate(360deg)}}
+
+/* Modal */
+.sql-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;align-items:center;justify-content:center}
+.sql-modal-bg.open{display:flex}
+.sql-modal{background:#fff;border-radius:10px;padding:24px;min-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.sql-modal h3{font-size:15px;font-weight:700;margin-bottom:14px}
+.sql-modal input,.sql-modal textarea{width:100%;padding:8px 11px;border:1px solid #d0d0cc;border-radius:6px;font-size:13px;font-family:inherit;outline:none;margin-bottom:10px;display:block}
+.sql-modal input:focus,.sql-modal textarea:focus{border-color:var(--c-blue)}
+.sql-modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.sql-modal-cancel{padding:7px 16px;border:1px solid #d0d0cc;border-radius:6px;background:none;cursor:pointer;font-size:12px;font-family:inherit}
+.sql-modal-ok{padding:7px 20px;background:var(--c-blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit}
+
+@media(max-width:720px){.sql-layout{grid-template-columns:1fr;height:auto}.sql-left{height:220px}.sql-conn-row1,.sql-conn-row2{grid-template-columns:1fr 1fr}}
+</style>
+
+<!-- Save Query Modal -->
+<div class="sql-modal-bg" id="sql-qsave-modal">
+  <div class="sql-modal">
+    <h3>Save Query</h3>
+    <input type="text" id="sql-qsave-name" placeholder="Query name…" />
+    <textarea style="height:56px;resize:none" id="sql-qsave-desc" placeholder="Description (optional)"></textarea>
+    <div class="sql-modal-btns">
+      <button class="sql-modal-cancel" onclick="document.getElementById('sql-qsave-modal').classList.remove('open')">Cancel</button>
+      <button class="sql-modal-ok" onclick="confirmSaveQuery()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="sql-layout" style="margin:0">
+  <!-- LEFT -->
+  <div class="sql-left">
+    <!-- Connections -->
+    <div class="sql-panel-hdr">
+      <span>Connections ({{ configs|length }})</span>
+      <button class="btn-sql-new" onclick="newConn()">+ New</button>
+    </div>
+    <div class="sql-section">
+      {% if not configs %}
+      <div style="padding:16px 4px;font-size:11px;color:var(--c-text3);text-align:center">No saved connections yet.</div>
+      {% endif %}
+      {% for c in configs %}
+      <div class="sql-conn-item" id="conn-{{ c.id }}" onclick="loadConn({{ c.id }})">
+        <div class="sql-conn-name">
+          <span class="sql-dbtype-pill db-{{ c.db_type }}">{{ c.db_type.upper() }}</span>{{ c.name }}
+        </div>
+        <div class="sql-conn-meta">{{ c.host }}{% if c.database %}/{{ c.database }}{% endif %}</div>
+        <button class="sql-conn-del" title="Delete" onclick="delConn(event,{{ c.id }})">×</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Saved Queries -->
+    <div class="sql-panel-hdr" style="margin-top:auto;position:sticky;bottom:0;border-top:1px solid var(--c-border);border-bottom:none">
+      <span>Saved Queries ({{ queries|length }})</span>
+    </div>
+    <div class="sql-section" style="flex:1;overflow-y:auto">
+      {% if not queries %}
+      <div style="padding:10px 4px;font-size:11px;color:var(--c-text3);text-align:center">No saved queries yet.</div>
+      {% endif %}
+      {% for q in queries %}
+      <div class="sql-query-item" id="qitem-{{ q.id }}" onclick="loadQuery({{ q.id }},'{{ q.name|replace("'","\\'") }}',{{ q.config_id or 'null' }})">
+        <div class="sql-query-name">{{ q.name }}</div>
+        <div class="sql-query-meta">{{ q.sql_text[:50]|replace('\n',' ') }}{% if q.sql_text|length > 50 %}…{% endif %}</div>
+        <button class="sql-query-del" onclick="delQuery(event,{{ q.id }})">×</button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="sql-main">
+    <!-- Connection form -->
+    <div class="sql-conn-form">
+      <div class="sql-conn-row1">
+        <div class="sql-fld">
+          <label>DB Type</label>
+          <select id="sql-dbtype" onchange="setDefaultPort()">
+            <option value="oracle">Oracle</option>
+            <option value="mssql">MS SQL Server</option>
+            <option value="mysql">MySQL</option>
+            <option value="postgres">PostgreSQL</option>
+            <option value="sqlite">SQLite</option>
+          </select>
+        </div>
+        <div class="sql-fld">
+          <label>Host / Server</label>
+          <input type="text" id="sql-host" placeholder="hostname or IP" />
+        </div>
+        <div class="sql-fld">
+          <label>Port</label>
+          <input type="text" id="sql-port" placeholder="1521" />
+        </div>
+        <div class="sql-fld">
+          <label>Database / SID / Service</label>
+          <input type="text" id="sql-database" placeholder="ORCL / mydb" />
+        </div>
+        <div class="sql-fld" id="fld-path" style="display:none">
+          <label>File Path (SQLite)</label>
+          <input type="text" id="sql-sqlite-path" placeholder="/path/to/file.db or :memory:" />
+        </div>
+      </div>
+      <div class="sql-conn-row2">
+        <div class="sql-fld">
+          <label>Username</label>
+          <input type="text" id="sql-user" placeholder="scott" />
+        </div>
+        <div class="sql-fld">
+          <label>Password</label>
+          <input type="password" id="sql-pass" placeholder="••••••••" />
+        </div>
+        <div class="sql-fld">
+          <label>Description</label>
+          <input type="text" id="sql-desc" placeholder="Optional description" />
+        </div>
+      </div>
+      <div class="sql-save-conn-row">
+        <input type="text" id="sql-conn-name" placeholder="Connection name to save…" />
+        <button class="btn-save-conn" onclick="saveConn()">💾 Save Connection</button>
+        <span id="sql-conn-save-msg" style="font-size:11px;color:var(--c-green)"></span>
+      </div>
+    </div>
+
+    <!-- Query editor -->
+    <div class="sql-editor-area">
+      <div class="sql-editor-top">
+        <input type="text" id="sql-query-name-inp" placeholder="Query name (to save)…" style="flex:1;max-width:240px" />
+        <button class="btn-save-query" onclick="openSaveQueryModal()">💾 Save Query</button>
+        <span id="sql-qsave-msg" style="font-size:11px;color:var(--c-green)"></span>
+      </div>
+      <textarea class="sql-textarea" id="sql-editor"
+        placeholder="-- Write your SQL here&#10;SELECT * FROM table WHERE ROWNUM <= 10;"
+        onkeydown="sqlKeyDown(event)"></textarea>
+      <div class="sql-run-row">
+        <button class="btn-run" id="sql-run-btn" onclick="runQuery()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Run Query
+        </button>
+        <div class="sql-maxrows">
+          <label style="font-size:11px;color:var(--c-text2)">Max rows:</label>
+          <input type="number" id="sql-max-rows" value="200" min="1" max="5000" />
+        </div>
+        <span class="sql-shortcut">Ctrl+Enter to run</span>
+        <button onclick="clearEditor()" style="margin-left:auto;background:none;border:1px solid var(--c-border);border-radius:5px;padding:5px 12px;font-size:11px;cursor:pointer;color:var(--c-text3)">Clear</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="sql-results" id="sql-results">
+      <div class="sql-idle" id="sql-idle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v5c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 10v5c0 1.66 4.03 3 9 3s9-1.34 9-3v-5"/></svg>
+        Configure a connection, write a query, and press Run
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var _activeCfgId = null;
+var _activeQId   = null;
+
+// Default ports
+var DEFAULT_PORTS = {oracle:'1521',mssql:'1433',mysql:'3306',postgres:'5432',sqlite:''};
+function setDefaultPort(){
+  var t=document.getElementById('sql-dbtype').value;
+  document.getElementById('sql-port').value=DEFAULT_PORTS[t]||'';
+  var isSqlite=t==='sqlite';
+  document.getElementById('sql-host').closest('.sql-fld').style.display=isSqlite?'none':'';
+  document.getElementById('sql-port').closest('.sql-fld').style.display=isSqlite?'none':'';
+  document.getElementById('sql-database').closest('.sql-fld').style.display=isSqlite?'none':'';
+  document.getElementById('fld-path').style.display=isSqlite?'':'none';
+  document.getElementById('sql-user').closest('.sql-fld').style.display=isSqlite?'none':'';
+  document.getElementById('sql-pass').closest('.sql-fld').style.display=isSqlite?'none':'';
+}
+
+// ── SAVE CONNECTION ──────────────────────────────────────────────────────────
+function saveConn(){
+  var name=document.getElementById('sql-conn-name').value.trim();
+  if(!name){showToast('Enter a connection name first',2500);return;}
+  var isSqlite=document.getElementById('sql-dbtype').value==='sqlite';
+  var payload={
+    id:_activeCfgId||null,
+    name:name,
+    db_type:document.getElementById('sql-dbtype').value,
+    host:isSqlite?'':document.getElementById('sql-host').value,
+    port:isSqlite?'':document.getElementById('sql-port').value,
+    database:isSqlite?document.getElementById('sql-sqlite-path').value:document.getElementById('sql-database').value,
+    username:isSqlite?'':document.getElementById('sql-user').value,
+    password:isSqlite?'':document.getElementById('sql-pass').value,
+    description:document.getElementById('sql-desc').value
+  };
+  fetch('/tools/sql/config/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){return r.json()}).then(function(d){
+      _activeCfgId=d.id;
+      document.getElementById('sql-conn-save-msg').textContent='✓ Saved';
+      setTimeout(function(){document.getElementById('sql-conn-save-msg').textContent=''},2500);
+      location.reload();
+    });
+}
+
+// ── LOAD CONNECTION ──────────────────────────────────────────────────────────
+function loadConn(id){
+  fetch('/tools/sql/config/'+id).then(function(r){return r.json()}).then(function(c){
+    _activeCfgId=c.id;
+    document.getElementById('sql-dbtype').value=c.db_type; setDefaultPort();
+    var isSqlite=c.db_type==='sqlite';
+    document.getElementById('sql-host').value=c.host||'';
+    document.getElementById('sql-port').value=c.port||'';
+    document.getElementById('sql-database').value=isSqlite?'':c.database||'';
+    document.getElementById('sql-sqlite-path').value=isSqlite?c.database||'':'';
+    document.getElementById('sql-user').value=c.username||'';
+    document.getElementById('sql-pass').value=c.password||'';
+    document.getElementById('sql-desc').value=c.description||'';
+    document.getElementById('sql-conn-name').value=c.name;
+    document.querySelectorAll('.sql-conn-item').forEach(function(el){el.classList.remove('active')});
+    var el=document.getElementById('conn-'+id);
+    if(el){el.classList.add('active');el.scrollIntoView({block:'nearest'});}
+    showToast('Connection loaded: '+c.name);
+  });
+}
+
+function newConn(){
+  _activeCfgId=null;
+  document.getElementById('sql-dbtype').value='oracle'; setDefaultPort();
+  ['sql-host','sql-port','sql-database','sql-user','sql-pass','sql-desc','sql-conn-name','sql-sqlite-path'].forEach(function(id){
+    document.getElementById(id).value='';
+  });
+  document.querySelectorAll('.sql-conn-item').forEach(function(el){el.classList.remove('active')});
+}
+
+function delConn(e,id){
+  e.stopPropagation();
+  if(!confirm('Delete this connection?')) return;
+  fetch('/tools/sql/config/'+id+'/delete',{method:'POST'}).then(function(){
+    var el=document.getElementById('conn-'+id);
+    if(el) el.remove();
+    if(_activeCfgId===id){_activeCfgId=null;}
+    showToast('Connection deleted');
+  });
+}
+
+// ── SAVE / LOAD QUERY ────────────────────────────────────────────────────────
+function openSaveQueryModal(){
+  var nm=document.getElementById('sql-query-name-inp').value.trim();
+  document.getElementById('sql-qsave-name').value=nm||'';
+  document.getElementById('sql-qsave-desc').value='';
+  document.getElementById('sql-qsave-modal').classList.add('open');
+  setTimeout(function(){document.getElementById('sql-qsave-name').focus()},80);
+}
+
+function confirmSaveQuery(){
+  var name=document.getElementById('sql-qsave-name').value.trim();
+  if(!name){showToast('Query name required');return;}
+  var payload={
+    id:_activeQId||null,
+    name:name,
+    sql_text:document.getElementById('sql-editor').value,
+    description:document.getElementById('sql-qsave-desc').value,
+    config_id:_activeCfgId||null
+  };
+  fetch('/tools/sql/query/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){return r.json()}).then(function(d){
+      document.getElementById('sql-qsave-modal').classList.remove('open');
+      _activeQId=d.id;
+      document.getElementById('sql-query-name-inp').value=d.name;
+      document.getElementById('sql-qsave-msg').textContent='✓ Saved';
+      setTimeout(function(){document.getElementById('sql-qsave-msg').textContent=''},2500);
+      location.reload();
+    });
+}
+
+function loadQuery(id, name, cfgId){
+  fetch('/tools/sql/queries').then(function(r){return r.json()}).then(function(qs){
+    var q=qs.find(function(x){return x.id===id});
+    if(q){
+      _activeQId=q.id;
+      document.getElementById('sql-editor').value=q.sql_text||'';
+      document.getElementById('sql-query-name-inp').value=q.name||'';
+      if(q.config_id) loadConn(q.config_id);
+      document.querySelectorAll('.sql-query-item').forEach(function(el){el.classList.remove('active')});
+      var el=document.getElementById('qitem-'+id);
+      if(el){el.classList.add('active');el.scrollIntoView({block:'nearest'});}
+    }
+  });
+}
+
+function delQuery(e,id){
+  e.stopPropagation();
+  if(!confirm('Delete this saved query?')) return;
+  fetch('/tools/sql/query/'+id+'/delete',{method:'POST'}).then(function(){
+    var el=document.getElementById('qitem-'+id);
+    if(el) el.remove();
+    if(_activeQId===id) _activeQId=null;
+    showToast('Query deleted');
+  });
+}
+
+function clearEditor(){
+  document.getElementById('sql-editor').value='';
+  document.getElementById('sql-results').innerHTML='<div class="sql-idle" id="sql-idle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v5c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 10v5c0 1.66 4.03 3 9 3s9-1.34 9-3v-5"/></svg>Configure a connection, write a query, and press Run</div>';
+}
+
+// ── RUN QUERY ────────────────────────────────────────────────────────────────
+function runQuery(){
+  var sql=document.getElementById('sql-editor').value.trim();
+  if(!sql){showToast('Write a SQL query first',2000);return;}
+  var btn=document.getElementById('sql-run-btn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="sql-spinner"></span> Running…';
+
+  var isSqlite=document.getElementById('sql-dbtype').value==='sqlite';
+  var payload={
+    config_id:_activeCfgId||null,
+    db_type:document.getElementById('sql-dbtype').value,
+    host:document.getElementById('sql-host').value,
+    port:document.getElementById('sql-port').value,
+    database:isSqlite?document.getElementById('sql-sqlite-path').value:document.getElementById('sql-database').value,
+    username:document.getElementById('sql-user').value,
+    password:document.getElementById('sql-pass').value,
+    sql:sql,
+    max_rows:parseInt(document.getElementById('sql-max-rows').value)||200
+  };
+
+  fetch('/tools/sql/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(r){return r.json()}).then(function(d){
+      btn.disabled=false;
+      btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Query';
+      renderResults(d);
+    }).catch(function(e){
+      btn.disabled=false;
+      btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Query';
+      renderResults({ok:false,error:String(e)});
+    });
+}
+
+function renderResults(d){
+  var el=document.getElementById('sql-results');
+  if(!d.ok){
+    el.innerHTML='<div style="padding:20px;background:#fdf0f0;border:1px solid #f5c0c0;border-radius:8px;color:#9a1a1a;font-family:\'Courier New\',monospace;font-size:12px;line-height:1.6;white-space:pre-wrap">⚠ Error ('+d.elapsed+'ms)\n\n'+escH(d.error)+'</div>';
+    return;
+  }
+  var html='';
+  (d.results||[]).forEach(function(r,i){
+    html+='<div class="sql-result-block">';
+    if(r.type==='select'){
+      html+='<div class="sql-result-hdr">';
+      html+='<span class="sql-result-title">Result Set '+(i+1)+'</span>';
+      html+='<span class="sql-result-pill rp-select">'+r.rows.length+' row'+(r.rows.length!==1?'s':'')+'</span>';
+      html+='<span class="sql-elapsed">'+d.elapsed+'ms</span>';
+      if(r.rows.length>0) html+='<button class="sql-export-btn" onclick="exportCSV('+i+')">↓ CSV</button>';
+      html+='</div>';
+      if(r.rows.length===0){
+        html+='<div style="padding:16px;background:#f5f5f3;border-radius:6px;text-align:center;color:var(--c-text3);font-size:12px">No rows returned</div>';
+      } else {
+        html+='<div class="sql-tbl-wrap"><table class="sql-tbl" id="tbl-'+i+'">';
+        html+='<thead><tr>'+r.columns.map(function(c){return'<th>'+escH(c)+'</th>'}).join('')+'</tr></thead>';
+        html+='<tbody>';
+        r.rows.forEach(function(row){
+          html+='<tr>'+r.columns.map(function(c){
+            var v=row[c];
+            return v===null?'<td class="sql-null">NULL</td>':'<td title="'+escH(v)+'">'+escH(v)+'</td>';
+          }).join('')+'</tr>';
+        });
+        html+='</tbody></table></div>';
+        if(r.truncated) html+='<div class="sql-truncated-note">⚠ Results truncated — showing first rows only. Increase max rows or add WHERE clause.</div>';
+      }
+    } else {
+      html+='<div class="sql-result-hdr">';
+      html+='<span class="sql-result-pill rp-ok">'+r.verb+' OK</span>';
+      html+='<span class="sql-elapsed">'+r.rowcount+' row(s) affected · '+d.elapsed+'ms</span>';
+      html+='</div>';
+    }
+    html+='</div>';
+  });
+  el.innerHTML=html;
+  // Store result data for CSV export
+  window._sqlResults = d.results||[];
+}
+
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+function exportCSV(idx){
+  var r=window._sqlResults&&window._sqlResults[idx];
+  if(!r||r.type!=='select') return;
+  var lines=[r.columns.map(function(c){return'"'+c+'"'}).join(',')];
+  r.rows.forEach(function(row){
+    lines.push(r.columns.map(function(c){
+      var v=row[c];
+      return v===null?'':'"'+String(v).replace(/"/g,'""')+'"';
+    }).join(','));
+  });
+  var blob=new Blob([lines.join('\r\n')],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='query_result_'+(idx+1)+'.csv';
+  a.click();
+}
+
+// ── KEYBOARD ─────────────────────────────────────────────────────────────────
+function sqlKeyDown(e){
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();runQuery();}
+  if(e.key==='Tab'){e.preventDefault();
+    var ta=e.target,s=ta.selectionStart,end=ta.selectionEnd;
+    ta.value=ta.value.substring(0,s)+'  '+ta.value.substring(end);
+    ta.selectionStart=ta.selectionEnd=s+2;
+  }
+}
+</script>
+{% endblock %}

@@ -429,6 +429,344 @@ def timezone_converter():
 def csr_generator():
     return render_template('csr_generator.html')
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TOOL: POSTMAN-LIKE HTTP CLIENT
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/tools/postman')
+@login_required
+def postman():
+    configs = PostmanConfig.query.order_by(PostmanConfig.updated.desc()).all()
+    return render_template('postman.html', configs=configs)
+
+@app.route('/tools/postman/config/save', methods=['POST'])
+@login_required
+def postman_config_save():
+    data = request.get_json()
+    cid = data.get('id')
+    if cid:
+        cfg = PostmanConfig.query.get_or_404(cid)
+    else:
+        cfg = PostmanConfig()
+        db.session.add(cfg)
+    cfg.name        = data.get('name','Untitled')
+    cfg.method      = data.get('method','GET')
+    cfg.url         = data.get('url','')
+    cfg.headers     = data.get('headers','{}')
+    cfg.body        = data.get('body','')
+    cfg.body_type   = data.get('body_type','json')
+    cfg.auth_type   = data.get('auth_type','none')
+    cfg.auth_data   = data.get('auth_data','{}')
+    cfg.description = data.get('description','')
+    cfg.updated     = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'ok':True,'id':cfg.id,'name':cfg.name})
+
+@app.route('/tools/postman/config/<int:cid>', methods=['GET'])
+@login_required
+def postman_config_get(cid):
+    cfg = PostmanConfig.query.get_or_404(cid)
+    return jsonify({
+        'id':cfg.id,'name':cfg.name,'method':cfg.method,'url':cfg.url,
+        'headers':cfg.headers,'body':cfg.body,'body_type':cfg.body_type,
+        'auth_type':cfg.auth_type,'auth_data':cfg.auth_data,'description':cfg.description
+    })
+
+@app.route('/tools/postman/config/<int:cid>/delete', methods=['POST'])
+@login_required
+def postman_config_delete(cid):
+    cfg = PostmanConfig.query.get_or_404(cid)
+    db.session.delete(cfg)
+    db.session.commit()
+    return jsonify({'ok':True})
+
+@app.route('/tools/postman/send', methods=['POST'])
+@login_required
+def postman_send():
+    import requests as req_lib, json as json_lib, time as time_lib
+    data = request.get_json()
+    method   = data.get('method','GET').upper()
+    url      = data.get('url','').strip()
+    hdrs     = {}
+    try: hdrs = json_lib.loads(data.get('headers') or '{}')
+    except: pass
+    body     = data.get('body','')
+    btype    = data.get('body_type','json')
+    auth_t   = data.get('auth_type','none')
+    auth_d   = {}
+    try: auth_d = json_lib.loads(data.get('auth_data') or '{}')
+    except: pass
+
+    # Auth
+    auth_arg = None
+    if auth_t == 'basic':
+        auth_arg = (auth_d.get('username',''), auth_d.get('password',''))
+    elif auth_t == 'bearer':
+        hdrs['Authorization'] = 'Bearer ' + auth_d.get('token','')
+    elif auth_t == 'apikey':
+        key_in = auth_d.get('in','header')
+        if key_in == 'header':
+            hdrs[auth_d.get('key','X-API-Key')] = auth_d.get('value','')
+
+    # Body
+    send_kwargs = {'headers':hdrs, 'auth':auth_arg, 'timeout':30, 'verify':False}
+    if method in ('POST','PUT','PATCH','DELETE') and body:
+        if btype == 'json':
+            try:
+                send_kwargs['json'] = json_lib.loads(body)
+            except:
+                send_kwargs['data'] = body
+                hdrs.setdefault('Content-Type','application/json')
+        elif btype == 'form':
+            import urllib.parse
+            send_kwargs['data'] = dict(urllib.parse.parse_qsl(body))
+        else:
+            send_kwargs['data'] = body
+
+    t0 = time_lib.time()
+    try:
+        resp = req_lib.request(method, url, **send_kwargs)
+        elapsed = round((time_lib.time()-t0)*1000)
+        ct = resp.headers.get('Content-Type','')
+        body_out = ''
+        if 'json' in ct:
+            try: body_out = json_lib.dumps(resp.json(), indent=2)
+            except: body_out = resp.text
+        else:
+            body_out = resp.text[:50000]
+        resp_hdrs = dict(resp.headers)
+        return jsonify({
+            'ok':True,'status':resp.status_code,'elapsed':elapsed,
+            'body':body_out,'headers':resp_hdrs,'content_type':ct,
+            'size':len(resp.content)
+        })
+    except Exception as e:
+        return jsonify({'ok':False,'error':str(e)})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TOOL: SQL QUERY EXECUTOR
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/tools/sql')
+@login_required
+def sql_tool():
+    configs = SqlConfig.query.order_by(SqlConfig.updated.desc()).all()
+    queries = SqlQuery.query.order_by(SqlQuery.id.desc()).all()
+    return render_template('sql_tool.html', configs=configs, queries=queries)
+
+@app.route('/tools/sql/config/save', methods=['POST'])
+@login_required
+def sql_config_save():
+    data = request.get_json()
+    cid = data.get('id')
+    if cid:
+        cfg = SqlConfig.query.get_or_404(cid)
+    else:
+        cfg = SqlConfig()
+        db.session.add(cfg)
+    cfg.name        = data.get('name','Untitled')
+    cfg.db_type     = data.get('db_type','oracle')
+    cfg.host        = data.get('host','')
+    cfg.port        = data.get('port','')
+    cfg.database    = data.get('database','')
+    cfg.username    = data.get('username','')
+    cfg.password    = data.get('password','')
+    cfg.description = data.get('description','')
+    cfg.updated     = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'ok':True,'id':cfg.id,'name':cfg.name})
+
+@app.route('/tools/sql/config/<int:cid>', methods=['GET'])
+@login_required
+def sql_config_get(cid):
+    cfg = SqlConfig.query.get_or_404(cid)
+    return jsonify({
+        'id':cfg.id,'name':cfg.name,'db_type':cfg.db_type,'host':cfg.host,
+        'port':cfg.port,'database':cfg.database,'username':cfg.username,
+        'password':cfg.password,'description':cfg.description
+    })
+
+@app.route('/tools/sql/config/<int:cid>/delete', methods=['POST'])
+@login_required
+def sql_config_delete(cid):
+    cfg = SqlConfig.query.get_or_404(cid)
+    SqlQuery.query.filter_by(config_id=cid).update({'config_id':None})
+    db.session.delete(cfg)
+    db.session.commit()
+    return jsonify({'ok':True})
+
+@app.route('/tools/sql/query/save', methods=['POST'])
+@login_required
+def sql_query_save():
+    data = request.get_json()
+    qid = data.get('id')
+    if qid:
+        q = SqlQuery.query.get_or_404(qid)
+    else:
+        q = SqlQuery()
+        db.session.add(q)
+    q.name        = data.get('name','Untitled Query')
+    q.sql_text    = data.get('sql_text','')
+    q.description = data.get('description','')
+    q.config_id   = data.get('config_id') or None
+    db.session.commit()
+    return jsonify({'ok':True,'id':q.id,'name':q.name})
+
+@app.route('/tools/sql/queries', methods=['GET'])
+@login_required
+def sql_queries_list():
+    cid = request.args.get('config_id')
+    qs = SqlQuery.query
+    if cid: qs = qs.filter_by(config_id=int(cid))
+    qs = qs.order_by(SqlQuery.id.desc()).all()
+    return jsonify([{'id':q.id,'name':q.name,'sql_text':q.sql_text,
+                     'description':q.description,'config_id':q.config_id} for q in qs])
+
+@app.route('/tools/sql/query/<int:qid>/delete', methods=['POST'])
+@login_required
+def sql_query_delete(qid):
+    q = SqlQuery.query.get_or_404(qid)
+    db.session.delete(q)
+    db.session.commit()
+    return jsonify({'ok':True})
+
+@app.route('/tools/sql/execute', methods=['POST'])
+@login_required
+def sql_execute():
+    import json as json_lib, time as time_lib
+    data = request.get_json()
+    cfg_id   = data.get('config_id')
+    db_type  = data.get('db_type','')
+    host     = data.get('host','')
+    port     = data.get('port','')
+    database = data.get('database','')
+    username = data.get('username','')
+    password = data.get('password','')
+    sql_text = data.get('sql','').strip()
+    max_rows = int(data.get('max_rows',200))
+
+    if cfg_id:
+        cfg = SqlConfig.query.get(cfg_id)
+        if cfg:
+            db_type  = db_type  or cfg.db_type
+            host     = host     or cfg.host
+            port     = port     or cfg.port
+            database = database or cfg.database
+            username = username or cfg.username
+            password = password or cfg.password
+
+    if not sql_text:
+        return jsonify({'ok':False,'error':'No SQL provided'})
+
+    t0 = time_lib.time()
+    try:
+        conn = None
+        if db_type == 'sqlite':
+            import sqlite3
+            conn = sqlite3.connect(database or ':memory:')
+            conn.row_factory = sqlite3.Row
+        elif db_type == 'mysql':
+            import importlib
+            pymysql = importlib.import_module('pymysql')
+            conn = pymysql.connect(host=host, port=int(port or 3306),
+                                   user=username, password=password,
+                                   database=database, cursorclass=pymysql.cursors.DictCursor)
+        elif db_type == 'postgres':
+            import importlib
+            psycopg2 = importlib.import_module('psycopg2')
+            import psycopg2.extras
+            conn = psycopg2.connect(host=host, port=int(port or 5432),
+                                    user=username, password=password, dbname=database)
+        elif db_type == 'mssql':
+            import importlib
+            pyodbc = importlib.import_module('pyodbc')
+            cs = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={host},{port or 1433};DATABASE={database};UID={username};PWD={password}'
+            conn = pyodbc.connect(cs)
+        elif db_type == 'oracle':
+            import importlib
+            cx_Oracle = importlib.import_module('cx_Oracle')
+            dsn = cx_Oracle.makedsn(host, int(port or 1521), service_name=database)
+            conn = cx_Oracle.connect(user=username, password=password, dsn=dsn)
+        else:
+            return jsonify({'ok':False,'error':f'Unsupported DB type: {db_type}'})
+
+        cur = conn.cursor()
+        # Split and execute multiple statements
+        stmts = [s.strip() for s in sql_text.split(';') if s.strip()]
+        results = []
+        for stmt in stmts:
+            cur.execute(stmt)
+            verb = stmt.split()[0].upper() if stmt else ''
+            if verb == 'SELECT' or (hasattr(cur,'description') and cur.description):
+                cols = [d[0] for d in (cur.description or [])]
+                rows_raw = cur.fetchmany(max_rows)
+                rows = []
+                for r in rows_raw:
+                    row = {}
+                    for i, c in enumerate(cols):
+                        v = r[i] if not isinstance(r, dict) else r.get(c)
+                        row[c] = str(v) if v is not None else None
+                    rows.append(row)
+                results.append({'type':'select','columns':cols,'rows':rows,
+                                 'truncated': cur.rowcount > max_rows if cur.rowcount and cur.rowcount > 0 else False})
+            else:
+                conn.commit()
+                results.append({'type':'dml','verb':verb,'rowcount':cur.rowcount or 0})
+
+        conn.close()
+        elapsed = round((time_lib.time()-t0)*1000)
+        return jsonify({'ok':True,'results':results,'elapsed':elapsed})
+
+    except Exception as e:
+        if conn:
+            try: conn.close()
+            except: pass
+        return jsonify({'ok':False,'error':str(e),'elapsed':round((time_lib.time()-t0)*1000)})
+
+
+# ── POSTMAN SAVED CONFIGS ────────────────────────────────────────────────────
+class PostmanConfig(db.Model):
+    __tablename__ = 'postman_config'
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(200), nullable=False)
+    method      = db.Column(db.String(10), default='GET')
+    url         = db.Column(db.Text, nullable=False)
+    headers     = db.Column(db.Text, default='{}')   # JSON string
+    body        = db.Column(db.Text, default='')
+    body_type   = db.Column(db.String(20), default='json')  # json, form, raw, none
+    auth_type   = db.Column(db.String(20), default='none')  # none, basic, bearer, apikey
+    auth_data   = db.Column(db.Text, default='{}')   # JSON string
+    description = db.Column(db.Text, default='')
+    created     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# ── SQL QUERY SAVED CONFIGS ──────────────────────────────────────────────────
+class SqlConfig(db.Model):
+    __tablename__ = 'sql_config'
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(200), nullable=False)
+    db_type     = db.Column(db.String(20), default='oracle')  # oracle, mssql, mysql, postgres, sqlite
+    host        = db.Column(db.String(300), default='')
+    port        = db.Column(db.String(10), default='')
+    database    = db.Column(db.String(200), default='')
+    username    = db.Column(db.String(200), default='')
+    password    = db.Column(db.Text, default='')
+    description = db.Column(db.Text, default='')
+    created     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SqlQuery(db.Model):
+    __tablename__ = 'sql_query'
+    id          = db.Column(db.Integer, primary_key=True)
+    config_id   = db.Column(db.Integer, db.ForeignKey('sql_config.id'), nullable=True)
+    name        = db.Column(db.String(200), nullable=False)
+    sql_text    = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, default='')
+    created     = db.Column(db.DateTime, default=datetime.utcnow)
+    config      = db.relationship('SqlConfig', backref='queries')
+
 def init_db():
     with app.app_context():
         db.create_all()
