@@ -419,6 +419,11 @@ def too_large(e):
     <strong>Tip:</strong> If pasting large HTML, try splitting into multiple KB pages, or remove large embedded images/base64 data.</p>
     <a href="javascript:history.back()">← Go Back</a></div></body></html>''', 413
 
+@app.route('/tools/csr')
+@login_required
+def csr_generator():
+    return render_template('csr_generator.html')
+
 def init_db():
     with app.app_context():
         db.create_all()

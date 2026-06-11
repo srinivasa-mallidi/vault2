@@ -353,6 +353,11 @@ button,input,select,textarea{font-family:var(--font)}
     {% endif %}
 
     <div class="sb-footer">
+      <div class="sb-section" style="padding-top:0">Tools</div>
+      <a href="{{ url_for('csr_generator') }}" class="sb-item {% if request.endpoint=='csr_generator' %}active{% endif %}">
+        <svg class="sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="10" height="8" rx="1"/><path d="M5 7V5a3 3 0 016 0v2"/><circle cx="8" cy="11" r="1.2" fill="currentColor" stroke="none"/></svg>
+        CSR Generator
+      </a>
       <a href="{{ url_for('logout') }}" class="sb-item">
         <svg class="sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 8H3M6 5l-3 3 3 3"/><path d="M8 3h4a1 1 0 011 1v8a1 1 0 01-1 1H8"/></svg>
         Sign out
