@@ -15,22 +15,42 @@
 
 {% block content %}
 <div class="content">
-<div style="max-width:860px">
-  <form method="POST" id="kb-form">
-    <div class="form-row" style="margin-bottom:16px">
+<div style="max-width:900px">
+
+  <!-- INPUT MODE TABS -->
+  <div style="display:flex;gap:0;border-bottom:1px solid var(--c-border);margin-bottom:20px">
+    <button type="button" id="tab-editor"  onclick="switchMode('editor')"
+      style="padding:9px 18px;font-size:13px;font-weight:500;border:none;background:transparent;cursor:pointer;border-bottom:2px solid var(--c-blue);color:var(--c-blue);font-family:inherit">
+      ✏️ Visual Editor
+    </button>
+    <button type="button" id="tab-html" onclick="switchMode('html')"
+      style="padding:9px 18px;font-size:13px;font-weight:500;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--c-text3);font-family:inherit">
+      &lt;/&gt; Paste HTML
+    </button>
+    <button type="button" id="tab-file" onclick="switchMode('file')"
+      style="padding:9px 18px;font-size:13px;font-weight:500;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--c-text3);font-family:inherit">
+      📁 Upload HTML File
+    </button>
+  </div>
+
+  <form method="POST" id="kb-form" enctype="multipart/form-data">
+
+    <!-- TITLE -->
+    <div class="form-row" style="margin-bottom:18px">
       <label>Page Title *</label>
-      <input type="text" name="title" value="{{ page.title if page else '' }}"
-        placeholder="e.g. Automation Scripts Overview" required autofocus
-        style="font-size:16px;padding:10px 13px">
+      <input type="text" name="title" id="kb-title"
+        value="{{ page.title if page else '' }}"
+        placeholder="e.g. Maximo Automation Scripts Overview"
+        required style="font-size:15px;padding:10px 13px">
     </div>
 
-    <div style="margin-bottom:16px">
-      <label style="display:block;font-size:12px;font-weight:600;color:var(--c-text2);margin-bottom:5px;letter-spacing:.02em">Content</label>
+    <!-- ── MODE 1: VISUAL EDITOR ── -->
+    <div id="mode-editor">
       <div class="editor-toolbar">
-        <button type="button" onclick="kbExec('bold')"          title="Bold"><b>B</b></button>
-        <button type="button" onclick="kbExec('italic')"        title="Italic"><i>I</i></button>
-        <button type="button" onclick="kbExec('underline')"     title="Underline"><u>U</u></button>
-        <button type="button" onclick="kbExec('strikeThrough')" title="Strikethrough"><s>S</s></button>
+        <button type="button" onclick="kbExec('bold')"><b>B</b></button>
+        <button type="button" onclick="kbExec('italic')"><i>I</i></button>
+        <button type="button" onclick="kbExec('underline')"><u>U</u></button>
+        <button type="button" onclick="kbExec('strikeThrough')"><s>S</s></button>
         <div class="sep"></div>
         <button type="button" onclick="kbSetBlock('h1')" style="font-size:11px;font-weight:700">H1</button>
         <button type="button" onclick="kbSetBlock('h2')" style="font-size:11px;font-weight:700">H2</button>
@@ -40,67 +60,135 @@
         <button type="button" onclick="kbExec('insertUnorderedList')">• List</button>
         <button type="button" onclick="kbExec('insertOrderedList')">1. List</button>
         <div class="sep"></div>
-        <button type="button" onclick="kbInsertCode()"   style="font-family:monospace;font-size:11px">`code`</button>
-        <button type="button" onclick="kbInsertPre()"    style="font-family:monospace;font-size:11px">```block</button>
+        <button type="button" onclick="kbInsertCode()"  style="font-family:monospace;font-size:11px">`code`</button>
+        <button type="button" onclick="kbInsertPre()"   style="font-family:monospace;font-size:11px">```block</button>
         <button type="button" onclick="kbInsertTable()">Table</button>
         <button type="button" onclick="kbInsertQuote()">❝ Quote</button>
         <div class="sep"></div>
         <button type="button" onclick="kbInsertLink()">🔗 Link</button>
-        <button type="button" onclick="kbExec('removeFormat')" style="font-size:11px">Clear</button>
-        <div class="sep"></div>
-        <button type="button" id="html-toggle-btn" onclick="kbToggleHtml()" style="font-family:monospace;font-size:11px">&lt;/&gt;</button>
+        <button type="button" onclick="kbExec('removeFormat')" style="font-size:11px">Clear fmt</button>
       </div>
-      <div class="editor-area" id="kb-editor" contenteditable="true" spellcheck="true"></div>
-      <textarea id="kb-html-editor" name="_html_raw"
-        style="display:none;width:100%;min-height:340px;padding:16px;
-        border:1px solid var(--c-border2);border-radius:0 0 var(--rs) var(--rs);
-        font-family:monospace;font-size:13px;background:var(--c-surface2);
-        color:var(--c-text);outline:none;resize:vertical;line-height:1.5"></textarea>
-      <input type="hidden" name="content" id="kb-content-hidden">
+      <div class="editor-area" id="kb-editor" contenteditable="true" spellcheck="true"
+        style="min-height:420px"></div>
     </div>
 
-    <div class="form-foot">
+    <!-- ── MODE 2: PASTE RAW HTML ── -->
+    <div id="mode-html" style="display:none">
+      <div style="margin-bottom:8px;font-size:13px;color:var(--c-text2)">
+        Paste your HTML content below. It will be rendered as-is in the KB view.
+      </div>
+      <textarea id="kb-html-paste" name="_html_raw"
+        placeholder="Paste your HTML here e.g. <h2>Title</h2><p>Content...</p>"
+        style="width:100%;min-height:420px;padding:14px;border:1px solid var(--c-border2);
+        border-radius:var(--rs);font-family:monospace;font-size:13px;background:var(--c-surface2);
+        color:var(--c-text);outline:none;resize:vertical;line-height:1.6">{% if page %}{{ page.content }}{% endif %}</textarea>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button type="button" onclick="kbPreviewHtml()" class="btn btn-sm">👁 Preview</button>
+        <button type="button" onclick="kbClearHtml()"   class="btn btn-sm btn-ghost">Clear</button>
+      </div>
+      <!-- Preview area -->
+      <div id="html-preview" style="display:none;margin-top:14px;padding:16px;
+        border:1px solid var(--c-border);border-radius:var(--r);background:var(--c-surface)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+          color:var(--c-text3);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
+          Preview
+        </div>
+        <div id="html-preview-content" class="kb-content"></div>
+      </div>
+    </div>
+
+    <!-- ── MODE 3: UPLOAD HTML FILE ── -->
+    <div id="mode-file" style="display:none">
+      <div style="border:2px dashed var(--c-border2);border-radius:var(--r);padding:40px 24px;
+        text-align:center;background:var(--c-surface2)" id="file-drop-zone">
+        <div style="font-size:32px;margin-bottom:10px">📁</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px">Upload an HTML file</div>
+        <div style="font-size:12px;color:var(--c-text3);margin-bottom:16px">
+          Drag &amp; drop an .html file here, or click to browse.<br>
+          The file's HTML content will be stored and rendered in the KB.
+        </div>
+        <input type="file" name="html_file" id="html-file-input" accept=".html,.htm"
+          style="display:none" onchange="kbFileSelected(this)">
+        <button type="button" onclick="document.getElementById('html-file-input').click()"
+          class="btn btn-primary">Choose HTML File</button>
+      </div>
+      <div id="file-selected-info" style="display:none;margin-top:12px;padding:12px 14px;
+        background:var(--c-green-bg);border:1px solid rgba(30,107,58,.2);border-radius:var(--rs);
+        font-size:13px;color:var(--c-green);display:flex;align-items:center;gap:8px">
+        <span>✅</span><span id="file-selected-name"></span>
+        <button type="button" onclick="kbFileClear()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--c-green);font-size:13px">✕ Clear</button>
+      </div>
+    </div>
+
+    <!-- Hidden field — filled by JS for visual editor mode -->
+    <input type="hidden" name="content" id="kb-content-hidden">
+
+    <!-- FOOTER -->
+    <div class="form-foot" style="margin-top:18px">
       <a href="{{ url_for('kb_list', pid=project.id) }}" class="btn btn-ghost">Cancel</a>
       <button type="button" onclick="kbSave()" class="btn btn-primary">
         {{ 'Save Changes' if page else 'Create Page' }}
       </button>
     </div>
+
   </form>
 </div>
 </div>
 
-{# Store existing content safely in a hidden textarea to avoid JS escaping issues #}
+<!-- Existing content stored safely in hidden textarea -->
 <textarea id="kb-existing-content" style="display:none">{{ page.content if page else '' }}</textarea>
 
 <script>
-// All functions defined at window scope immediately — no DOMContentLoaded needed
-// because this script tag is AFTER all the elements above
+var kbCurrentMode = 'editor';
 
-var kbHtmlMode = false;
+// ── INIT ──
+var kbEditor = document.getElementById('kb-editor');
+var existing = document.getElementById('kb-existing-content').value;
+if (kbEditor && existing) {
+  kbEditor.innerHTML = existing;
+}
 
-function kbGetEditor()  { return document.getElementById('kb-editor'); }
-function kbGetHtmlEd()  { return document.getElementById('kb-html-editor'); }
-function kbGetHtmlBtn() { return document.getElementById('html-toggle-btn'); }
+// Drag-drop on file zone
+var dropZone = document.getElementById('file-drop-zone');
+if (dropZone) {
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.style.borderColor='var(--c-blue)'; });
+  dropZone.addEventListener('dragleave', function()  { dropZone.style.borderColor='var(--c-border2)'; });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.style.borderColor = 'var(--c-border2)';
+    var file = e.dataTransfer.files[0];
+    if (file) {
+      var dt = new DataTransfer();
+      dt.items.add(file);
+      document.getElementById('html-file-input').files = dt.files;
+      kbFileSelected(document.getElementById('html-file-input'));
+    }
+  });
+}
 
-// Load existing content from hidden textarea (avoids JSON/HTML escaping issues)
-(function() {
-  var existing = document.getElementById('kb-existing-content');
-  var editor = kbGetEditor();
-  if (existing && editor) {
-    editor.innerHTML = existing.value;
-  }
-})();
+// ── MODE SWITCHER ──
+function switchMode(mode) {
+  kbCurrentMode = mode;
+  ['editor','html','file'].forEach(function(m) {
+    var panel = document.getElementById('mode-'+m);
+    var tab   = document.getElementById('tab-'+m);
+    if (panel) panel.style.display = m === mode ? 'block' : 'none';
+    if (tab) {
+      tab.style.borderBottomColor = m === mode ? 'var(--c-blue)' : 'transparent';
+      tab.style.color = m === mode ? 'var(--c-blue)' : 'var(--c-text3)';
+    }
+  });
+}
 
+// ── EDITOR FUNCTIONS ──
 function kbExec(cmd, val) {
   document.execCommand(cmd, false, val || null);
-  kbGetEditor().focus();
+  kbEditor.focus();
 }
-
 function kbSetBlock(tag) {
   document.execCommand('formatBlock', false, tag);
-  kbGetEditor().focus();
+  kbEditor.focus();
 }
-
 function kbInsertCode() {
   var sel = window.getSelection();
   if (sel && sel.rangeCount) {
@@ -110,23 +198,21 @@ function kbInsertCode() {
     range.deleteContents();
     range.insertNode(code);
   }
-  kbGetEditor().focus();
+  kbEditor.focus();
 }
-
 function kbInsertPre() {
   var pre = document.createElement('pre');
   var code = document.createElement('code');
   code.textContent = '// paste code here';
   pre.appendChild(code);
-  kbInsertNode(pre);
+  kbInsertNodeAtCursor(pre);
 }
-
 function kbInsertTable() {
-  var rows = parseInt(prompt('Number of rows:', '3'));
-  var cols = parseInt(prompt('Number of columns:', '3'));
+  var rows = parseInt(prompt('Rows:', '3'));
+  var cols = parseInt(prompt('Columns:', '3'));
   if (!rows || !cols || isNaN(rows) || isNaN(cols)) return;
   var html = '<table><thead><tr>';
-  for (var c = 0; c < cols; c++) html += '<th>Header ' + (c + 1) + '</th>';
+  for (var c = 0; c < cols; c++) html += '<th>Header '+(c+1)+'</th>';
   html += '</tr></thead><tbody>';
   for (var r = 0; r < rows; r++) {
     html += '<tr>';
@@ -135,23 +221,18 @@ function kbInsertTable() {
   }
   html += '</tbody></table><p></p>';
   document.execCommand('insertHTML', false, html);
-  kbGetEditor().focus();
+  kbEditor.focus();
 }
-
 function kbInsertQuote() {
   var bq = document.createElement('blockquote');
   bq.textContent = 'Quote text here';
-  kbInsertNode(bq);
+  kbInsertNodeAtCursor(bq);
 }
-
 function kbInsertLink() {
   var url = prompt('Enter URL:', 'https://');
-  if (url && url !== 'https://') {
-    document.execCommand('createLink', false, url);
-  }
+  if (url && url.length > 5) document.execCommand('createLink', false, url);
 }
-
-function kbInsertNode(node) {
+function kbInsertNodeAtCursor(node) {
   var sel = window.getSelection();
   if (sel && sel.rangeCount) {
     var range = sel.getRangeAt(0);
@@ -161,46 +242,82 @@ function kbInsertNode(node) {
     sel.removeAllRanges();
     sel.addRange(range);
   }
-  kbGetEditor().focus();
+  kbEditor.focus();
 }
 
-function kbToggleHtml() {
-  var editor = kbGetEditor();
-  var htmlEd = kbGetHtmlEd();
-  var btn    = kbGetHtmlBtn();
-  kbHtmlMode = !kbHtmlMode;
-  if (kbHtmlMode) {
-    htmlEd.value = editor.innerHTML;
-    editor.style.display = 'none';
-    htmlEd.style.display = 'block';
-    if (btn) btn.classList.add('active');
-  } else {
-    editor.innerHTML = htmlEd.value;
-    editor.style.display = 'block';
-    htmlEd.style.display = 'none';
-    if (btn) btn.classList.remove('active');
-  }
+// ── HTML PASTE FUNCTIONS ──
+function kbPreviewHtml() {
+  var content = document.getElementById('kb-html-paste').value;
+  var preview = document.getElementById('html-preview');
+  var previewContent = document.getElementById('html-preview-content');
+  previewContent.innerHTML = content;
+  preview.style.display = 'block';
+  preview.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function kbClearHtml() {
+  document.getElementById('kb-html-paste').value = '';
+  document.getElementById('html-preview').style.display = 'none';
 }
 
+// ── FILE UPLOAD FUNCTIONS ──
+function kbFileSelected(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var info = document.getElementById('file-selected-info');
+  var name = document.getElementById('file-selected-name');
+  var size = (file.size / 1024).toFixed(1) + ' KB';
+  if (file.size > 1024*1024) size = (file.size/1024/1024).toFixed(2) + ' MB';
+  name.textContent = '📄 ' + file.name + '  (' + size + ')';
+  info.style.display = 'flex';
+}
+function kbFileClear() {
+  document.getElementById('html-file-input').value = '';
+  document.getElementById('file-selected-info').style.display = 'none';
+}
+
+// ── SAVE ──
 function kbSave() {
-  var editor = kbGetEditor();
-  var htmlEd = kbGetHtmlEd();
-  var hidden = document.getElementById('kb-content-hidden');
-  var form   = document.getElementById('kb-form');
-  if (!editor || !hidden || !form) {
-    alert('Page error: editor elements not found. Please refresh.');
+  var title = document.getElementById('kb-title').value.trim();
+  if (!title) {
+    alert('Please enter a page title.');
+    document.getElementById('kb-title').focus();
     return;
   }
-  hidden.value = kbHtmlMode ? htmlEd.value : editor.innerHTML;
-  console.log('Saving KB content, length:', hidden.value.length);
-  form.submit();
+
+  if (kbCurrentMode === 'editor') {
+    // Visual editor — copy innerHTML to hidden field
+    var hidden = document.getElementById('kb-content-hidden');
+    hidden.value = kbEditor.innerHTML;
+    // Disable the _html_raw textarea so it doesn't interfere
+    document.getElementById('kb-html-paste').disabled = true;
+    document.getElementById('html-file-input').disabled = true;
+
+  } else if (kbCurrentMode === 'html') {
+    // HTML paste — the textarea named _html_raw submits directly
+    // Clear hidden content field and file input
+    document.getElementById('kb-content-hidden').value = '';
+    document.getElementById('html-file-input').disabled = true;
+
+  } else if (kbCurrentMode === 'file') {
+    // File upload — submits via multipart
+    var fileInput = document.getElementById('html-file-input');
+    if (!fileInput.files || !fileInput.files.length) {
+      alert('Please select an HTML file to upload.');
+      return;
+    }
+    document.getElementById('kb-content-hidden').value = '';
+    document.getElementById('kb-html-paste').disabled = true;
+  }
+
+  console.log('KB Save — mode:', kbCurrentMode);
+  document.getElementById('kb-form').submit();
 }
 
-// Prevent Enter on title from jumping out of title field
-var titleInput = document.querySelector('#kb-form input[name="title"]');
+// Prevent Enter on title
+var titleInput = document.getElementById('kb-title');
 if (titleInput) {
   titleInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { e.preventDefault(); kbGetEditor().focus(); }
+    if (e.key === 'Enter') { e.preventDefault(); kbEditor.focus(); }
   });
 }
 </script>
