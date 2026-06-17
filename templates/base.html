@@ -66,19 +66,59 @@ button,input,select,textarea{font-family:var(--font)}
 .breadcrumb a:hover{text-decoration:underline}
 .breadcrumb-sep{font-size:12px;opacity:.5}
 
-/* ── IST CLOCK BAR ── */
-#ist-clock-bar{display:flex;align-items:center;gap:7px;padding:5px 20px;
+/* ── TOP UTILITY BAR (search + IST clock) ── */
+#top-utility-bar{display:flex;align-items:stretch;
   background:linear-gradient(90deg,#1a1a18 0%,#2a2a26 100%);
+  border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0}
+
+#global-search-wrap{flex:1;display:flex;align-items:center;gap:8px;
+  padding:0 14px;position:relative;max-width:520px}
+#gs-icon{color:rgba(255,255,255,.4);flex-shrink:0}
+#global-search-input{flex:1;background:transparent;border:none;outline:none;
+  color:#f0f0ee;font-size:13px;font-family:inherit;padding:9px 0}
+#global-search-input::placeholder{color:rgba(255,255,255,.35)}
+#gs-kbd{background:rgba(255,255,255,.1);color:rgba(255,255,255,.5);
+  border-radius:4px;padding:1px 7px;font-size:10px;font-family:'Courier New',monospace;
+  flex-shrink:0}
+#global-search-wrap.has-focus #gs-kbd{display:none}
+
+#gs-dropdown{display:none;position:absolute;top:calc(100% + 4px);left:14px;right:14px;
+  background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;
+  box-shadow:0 10px 35px rgba(0,0,0,.18);max-height:420px;overflow-y:auto;z-index:500}
+#gs-dropdown.open{display:block}
+.gs-item{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;
+  text-decoration:none;color:var(--c-text);border-bottom:1px solid var(--c-border)}
+.gs-item:last-child{border-bottom:none}
+.gs-item:hover,.gs-item.gs-active{background:var(--c-surface2)}
+.gs-item-icon{font-size:15px;flex-shrink:0;width:20px;text-align:center}
+.gs-item-text{flex:1;min-width:0}
+.gs-item-title{font-size:12.5px;font-weight:600;color:var(--c-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gs-item-sub{font-size:11px;color:var(--c-text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gs-item-type{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--c-text3);background:var(--c-surface2);border-radius:4px;padding:2px 6px;flex-shrink:0}
+.gs-empty{padding:16px;text-align:center;font-size:12px;color:var(--c-text3)}
+.gs-viewall{display:block;text-align:center;padding:9px;font-size:12px;font-weight:600;
+  color:var(--c-blue);text-decoration:none;background:var(--c-surface2)}
+.gs-viewall:hover{background:var(--c-border)}
+
+#ist-clock-bar{display:flex;align-items:center;gap:7px;padding:5px 20px;
   color:#f0f0ee;font-size:12px;font-weight:500;text-decoration:none;
-  border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer;
-  transition:background .15s;user-select:none;flex-shrink:0}
-#ist-clock-bar:hover{background:linear-gradient(90deg,#2a2a26 0%,#3a3a34 100%)}
+  cursor:pointer;transition:background .15s;user-select:none;flex-shrink:0;
+  border-left:1px solid rgba(255,255,255,.08)}
+#ist-clock-bar:hover{background:rgba(255,255,255,.06)}
 #ist-time{font-family:'Courier New',monospace;font-size:13px;font-weight:700;
   color:#7ee8a2;letter-spacing:.04em}
 #ist-date{color:#c8c8c0;font-size:11.5px}
 .ist-sep{color:rgba(255,255,255,.25);font-size:10px}
 .ist-label{background:rgba(126,232,162,.15);color:#7ee8a2;border:1px solid rgba(126,232,162,.3);
   border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.06em}
+
+@media(max-width:760px){
+  #top-utility-bar{flex-direction:column}
+  #global-search-wrap{max-width:none;border-bottom:1px solid rgba(255,255,255,.08)}
+  #ist-clock-bar{border-left:none;justify-content:center}
+  #ist-date{display:none}
+}
 
 /* ── BUTTONS ── */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border:1px solid var(--c-border2);
@@ -388,14 +428,22 @@ button,input,select,textarea{font-family:var(--font)}
   </aside>
 
   <div class="main">
-    <!-- IST CLOCK BAR -->
-    <a href="{{ url_for('timezone_converter') }}" id="ist-clock-bar" title="Click to open Timezone Converter">
-      <span id="ist-date"></span>
-      <span class="ist-sep">&#183;</span>
-      <span id="ist-time"></span>
-      <span class="ist-label">IST</span>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-    </a>
+    <!-- GLOBAL SEARCH + IST CLOCK BAR -->
+    <div id="top-utility-bar">
+      <div id="global-search-wrap">
+        <svg id="gs-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="global-search-input" placeholder="Search projects, sites, KB, tasks…" autocomplete="off" />
+        <kbd id="gs-kbd">/</kbd>
+        <div id="gs-dropdown"></div>
+      </div>
+      <a href="{{ url_for('timezone_converter') }}" id="ist-clock-bar" title="Click to open Timezone Converter">
+        <span id="ist-date"></span>
+        <span class="ist-sep">&#183;</span>
+        <span id="ist-time"></span>
+        <span class="ist-label">IST</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </a>
+    </div>
     {% block topbar %}{% endblock %}
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -496,6 +544,103 @@ function removeRow(btn){
   }
   tick();
   setInterval(tick,1000);
+})();
+
+// ── GLOBAL SEARCH ─────────────────────────────────────────────────────────
+(function(){
+  var input    = document.getElementById('global-search-input');
+  var dropdown = document.getElementById('gs-dropdown');
+  var wrap     = document.getElementById('global-search-wrap');
+  if(!input) return;
+
+  var debounceTimer = null;
+  var activeIdx = -1;
+  var currentItems = [];
+
+  function escH(s){
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderDropdown(items, q){
+    currentItems = items;
+    activeIdx = -1;
+    if(items.length === 0){
+      dropdown.innerHTML = '<div class="gs-empty">No matches for "'+escH(q)+'"</div>';
+    } else {
+      var html = items.map(function(it, i){
+        return '<a class="gs-item" data-idx="'+i+'" href="'+it.url+'">'
+          + '<span class="gs-item-icon">'+it.icon+'</span>'
+          + '<span class="gs-item-text">'
+            + '<div class="gs-item-title">'+escH(it.title)+'</div>'
+            + '<div class="gs-item-sub">'+escH(it.subtitle)+'</div>'
+          + '</span>'
+          + '<span class="gs-item-type">'+escH(it.type)+'</span>'
+        +'</a>';
+      }).join('');
+      html += '<a class="gs-viewall" href="/search?q='+encodeURIComponent(q)+'">View all results for "'+escH(q)+'" →</a>';
+      dropdown.innerHTML = html;
+    }
+    dropdown.classList.add('open');
+  }
+
+  function closeDropdown(){
+    dropdown.classList.remove('open');
+    activeIdx = -1;
+  }
+
+  input.addEventListener('input', function(){
+    var q = input.value.trim();
+    clearTimeout(debounceTimer);
+    if(q.length < 2){ closeDropdown(); return; }
+    debounceTimer = setTimeout(function(){
+      fetch('/api/search-suggest?q='+encodeURIComponent(q))
+        .then(function(r){return r.json()})
+        .then(function(items){ renderDropdown(items, q); });
+    }, 200);
+  });
+
+  input.addEventListener('focus', function(){
+    wrap.classList.add('has-focus');
+    if(input.value.trim().length >= 2 && dropdown.innerHTML) dropdown.classList.add('open');
+  });
+
+  document.addEventListener('click', function(e){
+    if(!wrap.contains(e.target)){ closeDropdown(); wrap.classList.remove('has-focus'); }
+  });
+
+  input.addEventListener('keydown', function(e){
+    var items = dropdown.querySelectorAll('.gs-item');
+    if(e.key === 'ArrowDown'){
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx+1, items.length-1);
+      items.forEach(function(it,i){it.classList.toggle('gs-active', i===activeIdx)});
+      if(items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'});
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx-1, 0);
+      items.forEach(function(it,i){it.classList.toggle('gs-active', i===activeIdx)});
+      if(items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'});
+    } else if(e.key === 'Enter'){
+      if(activeIdx >= 0 && items[activeIdx]){
+        e.preventDefault();
+        window.location.href = items[activeIdx].getAttribute('href');
+      } else {
+        var q = input.value.trim();
+        if(q){ window.location.href = '/search?q='+encodeURIComponent(q); }
+      }
+    } else if(e.key === 'Escape'){
+      closeDropdown();
+      input.blur();
+    }
+  });
+
+  // Global "/" shortcut to focus search, unless typing in another field
+  document.addEventListener('keydown', function(e){
+    if(e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA'){
+      e.preventDefault();
+      input.focus();
+    }
+  });
 })();
 </script>
 </body>

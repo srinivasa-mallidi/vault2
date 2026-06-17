@@ -101,6 +101,94 @@ def home():
     projects = Project.query.order_by(Project.updated.desc()).all()
     return render_template('home.html', projects=projects)
 
+# ── GLOBAL SEARCH ─────────────────────────────────────────────────────────────
+
+@app.route('/search')
+@login_required
+def global_search():
+    q = request.args.get('q', '').strip()
+    results = {
+        'projects': [], 'sites': [], 'sections': [], 'kb': [], 'tasks': []
+    }
+    total = 0
+
+    if q and len(q) >= 2:
+        like = f'%{q}%'
+
+        # Projects
+        projs = Project.query.filter(
+            db.or_(Project.name.ilike(like), Project.description.ilike(like))
+        ).order_by(Project.updated.desc()).limit(20).all()
+        results['projects'] = projs
+        total += len(projs)
+
+        # Sites
+        sites = Site.query.filter(
+            db.or_(Site.name.ilike(like), Site.description.ilike(like), Site.environment.ilike(like))
+        ).order_by(Site.updated.desc()).limit(20).all()
+        results['sites'] = sites
+        total += len(sites)
+
+        # Sections — search title and the JSON blob (covers URLs, server names, DB names, custom keys/values)
+        secs = SiteSection.query.filter(
+            db.or_(SiteSection.title.ilike(like), SiteSection.data_json.ilike(like))
+        ).order_by(SiteSection.created.desc()).limit(30).all()
+        results['sections'] = secs
+        total += len(secs)
+
+        # Knowledge Base
+        kb = KBPage.query.filter(
+            db.or_(KBPage.title.ilike(like), KBPage.content.ilike(like))
+        ).order_by(KBPage.updated.desc()).limit(20).all()
+        results['kb'] = kb
+        total += len(kb)
+
+        # Tasks
+        tasks_r = Task.query.filter(
+            db.or_(Task.title.ilike(like), Task.description.ilike(like))
+        ).order_by(Task.created.desc()).limit(30).all()
+        results['tasks'] = tasks_r
+        total += len(tasks_r)
+
+    return render_template('search_results.html', q=q, results=results, total=total)
+
+@app.route('/api/search-suggest')
+@login_required
+def search_suggest():
+    """Lightweight JSON endpoint for live dropdown suggestions."""
+    q = request.args.get('q', '').strip()
+    if not q or len(q) < 2:
+        return jsonify([])
+    like = f'%{q}%'
+    out = []
+
+    for p in Project.query.filter(Project.name.ilike(like)).limit(4).all():
+        out.append({'type':'Project','icon':p.icon or '📁','title':p.name,
+                     'subtitle':'Project','url':url_for('project_detail', pid=p.id)})
+
+    for s in Site.query.filter(Site.name.ilike(like)).limit(4).all():
+        out.append({'type':'Site','icon':'🌐','title':s.name,
+                     'subtitle':(s.project.name if s.project else 'Site'),
+                     'url':url_for('site_detail', pid=s.project_id, sid=s.id)})
+
+    for sec in SiteSection.query.filter(
+            db.or_(SiteSection.title.ilike(like), SiteSection.data_json.ilike(like))).limit(4).all():
+        site = sec.site
+        out.append({'type':'Section','icon':'🔑','title':sec.title or sec.stype,
+                     'subtitle': (site.name if site else 'Section'),
+                     'url': url_for('site_detail', pid=site.project_id, sid=site.id) if site else '#'})
+
+    for k in KBPage.query.filter(db.or_(KBPage.title.ilike(like), KBPage.content.ilike(like))).limit(4).all():
+        out.append({'type':'KB Article','icon':'📄','title':k.title,
+                     'subtitle':(k.project.name if k.project else 'Knowledge Base'),
+                     'url':url_for('kb_view', pid=k.project_id, pgid=k.id)})
+
+    for t in Task.query.filter(db.or_(Task.title.ilike(like), Task.description.ilike(like))).limit(4).all():
+        out.append({'type':'Task','icon':'✅','title':t.title,
+                     'subtitle': t.status.capitalize(), 'url': url_for('tasks') + '#task-'+str(t.id)})
+
+    return jsonify(out[:14])
+
 # ── PROJECTS ──────────────────────────────────────────────────────────────────
 
 @app.route('/project/new', methods=['GET','POST'])
@@ -632,23 +720,61 @@ def sql_query_delete(qid):
     db.session.commit()
     return jsonify({'ok':True})
 
+@app.route('/tools/sql/driver-status', methods=['GET'])
+@login_required
+def sql_driver_status():
+    """Return which DB drivers are installed on the server."""
+    import importlib
+    DRIVERS = {
+        'oracle':   ['oracledb', 'cx_Oracle'],
+        'mysql':    ['pymysql', 'MySQLdb'],
+        'postgres': ['psycopg2'],
+        'mssql':    ['pyodbc'],
+        'sqlite':   ['sqlite3'],
+    }
+    INSTALL = {
+        'oracle':   'pip install oracledb',
+        'mysql':    'pip install pymysql',
+        'postgres': 'pip install psycopg2-binary',
+        'mssql':    'pip install pyodbc  (+ ODBC Driver 17)',
+        'sqlite':   'built-in',
+    }
+    status = {}
+    for db_type, mods in DRIVERS.items():
+        found = None
+        for mod in mods:
+            try:
+                importlib.import_module(mod)
+                found = mod
+                break
+            except ImportError:
+                pass
+        status[db_type] = {
+            'available': found is not None,
+            'driver': found,
+            'install': INSTALL.get(db_type, ''),
+        }
+    return jsonify(status)
+
 @app.route('/tools/sql/execute', methods=['POST'])
 @login_required
 def sql_execute():
-    import json as json_lib, time as time_lib
-    data = request.get_json()
-    cfg_id   = data.get('config_id')
-    db_type  = data.get('db_type','')
-    host     = data.get('host','')
-    port     = data.get('port','')
-    database = data.get('database','')
-    username = data.get('username','')
-    password = data.get('password','')
-    sql_text = data.get('sql','').strip()
-    max_rows = int(data.get('max_rows',200))
+    import importlib, time as time_lib
 
+    data     = request.get_json()
+    cfg_id   = data.get('config_id')
+    db_type  = data.get('db_type', '').strip()
+    host     = data.get('host', '').strip()
+    port     = data.get('port', '').strip()
+    database = data.get('database', '').strip()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    sql_text = data.get('sql', '').strip()
+    max_rows = max(1, min(int(data.get('max_rows', 200) or 200), 5000))
+
+    # Merge saved connection values (form values override)
     if cfg_id:
-        cfg = SqlConfig.query.get(cfg_id)
+        cfg = SqlConfig.query.get(int(cfg_id))
         if cfg:
             db_type  = db_type  or cfg.db_type
             host     = host     or cfg.host
@@ -658,72 +784,170 @@ def sql_execute():
             password = password or cfg.password
 
     if not sql_text:
-        return jsonify({'ok':False,'error':'No SQL provided'})
+        return jsonify({'ok': False, 'error': 'No SQL provided.', 'elapsed': 0})
+    if not db_type:
+        return jsonify({'ok': False, 'error': 'No database type selected.', 'elapsed': 0})
+
+    # ── Driver availability map ───────────────────────────────────────────────
+    DRIVER_CANDIDATES = {
+        'oracle':   ['oracledb', 'cx_Oracle'],
+        'mysql':    ['pymysql', 'MySQLdb'],
+        'postgres': ['psycopg2'],
+        'mssql':    ['pyodbc'],
+        'sqlite':   ['sqlite3'],
+    }
+    INSTALL_HINT = {
+        'oracle':   'pip install oracledb --break-system-packages',
+        'mysql':    'pip install pymysql --break-system-packages',
+        'postgres': 'pip install psycopg2-binary --break-system-packages',
+        'mssql':    'pip install pyodbc --break-system-packages  (also needs: ODBC Driver 17 for SQL Server)',
+        'sqlite':   'sqlite3 is built-in — no install needed',
+    }
+
+    def load_driver(db_t):
+        for mod in DRIVER_CANDIDATES.get(db_t, []):
+            try:
+                return importlib.import_module(mod), mod
+            except ImportError:
+                continue
+        return None, None
 
     t0 = time_lib.time()
+    conn = None
+
     try:
-        conn = None
+        # ── Connect ───────────────────────────────────────────────────────────
         if db_type == 'sqlite':
             import sqlite3
-            conn = sqlite3.connect(database or ':memory:')
+            path = database or ':memory:'
+            conn = sqlite3.connect(path)
             conn.row_factory = sqlite3.Row
-        elif db_type == 'mysql':
-            import importlib
-            pymysql = importlib.import_module('pymysql')
-            conn = pymysql.connect(host=host, port=int(port or 3306),
-                                   user=username, password=password,
-                                   database=database, cursorclass=pymysql.cursors.DictCursor)
-        elif db_type == 'postgres':
-            import importlib
-            psycopg2 = importlib.import_module('psycopg2')
-            import psycopg2.extras
-            conn = psycopg2.connect(host=host, port=int(port or 5432),
-                                    user=username, password=password, dbname=database)
-        elif db_type == 'mssql':
-            import importlib
-            pyodbc = importlib.import_module('pyodbc')
-            cs = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={host},{port or 1433};DATABASE={database};UID={username};PWD={password}'
-            conn = pyodbc.connect(cs)
-        elif db_type == 'oracle':
-            import importlib
-            cx_Oracle = importlib.import_module('cx_Oracle')
-            dsn = cx_Oracle.makedsn(host, int(port or 1521), service_name=database)
-            conn = cx_Oracle.connect(user=username, password=password, dsn=dsn)
-        else:
-            return jsonify({'ok':False,'error':f'Unsupported DB type: {db_type}'})
+            cur = conn.cursor()
 
-        cur = conn.cursor()
-        # Split and execute multiple statements
-        stmts = [s.strip() for s in sql_text.split(';') if s.strip()]
-        results = []
-        for stmt in stmts:
-            cur.execute(stmt)
-            verb = stmt.split()[0].upper() if stmt else ''
-            if verb == 'SELECT' or (hasattr(cur,'description') and cur.description):
-                cols = [d[0] for d in (cur.description or [])]
-                rows_raw = cur.fetchmany(max_rows)
-                rows = []
-                for r in rows_raw:
-                    row = {}
-                    for i, c in enumerate(cols):
-                        v = r[i] if not isinstance(r, dict) else r.get(c)
-                        row[c] = str(v) if v is not None else None
-                    rows.append(row)
-                results.append({'type':'select','columns':cols,'rows':rows,
-                                 'truncated': cur.rowcount > max_rows if cur.rowcount and cur.rowcount > 0 else False})
+        elif db_type == 'oracle':
+            mod, mod_name = load_driver('oracle')
+            if mod is None:
+                hint = INSTALL_HINT['oracle']
+                return jsonify({'ok': False, 'elapsed': 0,
+                    'error': f'Oracle driver not installed.\n\nRun on the server:\n  {hint}\n\n'
+                             f'Then restart Flask.\n\n'
+                             f'Note: oracledb works in Thin mode (no Oracle Client needed).'})
+            if mod_name == 'oracledb':
+                # oracledb thin mode — no Oracle Instant Client required
+                dsn = f'{host}:{port or 1521}/{database}'
+                conn = mod.connect(user=username, password=password, dsn=dsn)
             else:
-                conn.commit()
-                results.append({'type':'dml','verb':verb,'rowcount':cur.rowcount or 0})
+                # legacy cx_Oracle
+                dsn = mod.makedsn(host, int(port or 1521), service_name=database)
+                conn = mod.connect(user=username, password=password, dsn=dsn)
+            cur = conn.cursor()
+
+        elif db_type == 'mysql':
+            mod, _ = load_driver('mysql')
+            if mod is None:
+                return jsonify({'ok': False, 'elapsed': 0,
+                    'error': f'MySQL driver not installed.\n\nRun:\n  {INSTALL_HINT["mysql"]}\n\nThen restart Flask.'})
+            conn = mod.connect(
+                host=host, port=int(port or 3306),
+                user=username, password=password,
+                database=database,
+                cursorclass=mod.cursors.DictCursor
+            )
+            cur = conn.cursor()
+
+        elif db_type == 'postgres':
+            mod, _ = load_driver('postgres')
+            if mod is None:
+                return jsonify({'ok': False, 'elapsed': 0,
+                    'error': f'PostgreSQL driver not installed.\n\nRun:\n  {INSTALL_HINT["postgres"]}\n\nThen restart Flask.'})
+            conn = mod.connect(
+                host=host, port=int(port or 5432),
+                user=username, password=password, dbname=database
+            )
+            cur = conn.cursor()
+
+        elif db_type == 'mssql':
+            mod, _ = load_driver('mssql')
+            if mod is None:
+                return jsonify({'ok': False, 'elapsed': 0,
+                    'error': f'MS SQL driver not installed.\n\nRun:\n  {INSTALL_HINT["mssql"]}\n\nThen restart Flask.'})
+            cs = (f'DRIVER={{ODBC Driver 17 for SQL Server}};'
+                  f'SERVER={host},{port or 1433};DATABASE={database};'
+                  f'UID={username};PWD={password}')
+            conn = mod.connect(cs)
+            cur = conn.cursor()
+
+        else:
+            return jsonify({'ok': False, 'error': f'Unknown DB type: {db_type}', 'elapsed': 0})
+
+        # ── Execute statements ────────────────────────────────────────────────
+        # Split on semicolons but ignore semicolons inside quotes
+        import re
+        stmts = [s.strip() for s in re.split(r';\s*(?=(?:[^\'"]|\'[^\']*\'|"[^"]*")*$)', sql_text) if s.strip()]
+        results = []
+
+        for stmt in stmts:
+            verb = stmt.split()[0].upper() if stmt.split() else ''
+            cur.execute(stmt)
+
+            is_select = (verb == 'SELECT') or (hasattr(cur, 'description') and cur.description)
+
+            if is_select:
+                desc = cur.description or []
+                cols = [str(d[0]) for d in desc]
+
+                if db_type == 'mysql':
+                    # pymysql DictCursor returns dicts
+                    rows_raw = cur.fetchmany(max_rows + 1)
+                    has_more = len(rows_raw) > max_rows
+                    rows_raw = rows_raw[:max_rows]
+                    rows = []
+                    for r in rows_raw:
+                        row = {}
+                        for c in cols:
+                            v = r.get(c)
+                            row[c] = str(v) if v is not None else None
+                        rows.append(row)
+                else:
+                    rows_raw = cur.fetchmany(max_rows + 1)
+                    has_more = len(rows_raw) > max_rows
+                    rows_raw = rows_raw[:max_rows]
+                    rows = []
+                    for r in rows_raw:
+                        row = {}
+                        for i, c in enumerate(cols):
+                            try:
+                                v = r[i] if not isinstance(r, (dict, sqlite3.Row if db_type=='sqlite' else dict)) else r[c]
+                            except Exception:
+                                try: v = r[i]
+                                except: v = None
+                            row[c] = str(v) if v is not None else None
+                        rows.append(row)
+
+                results.append({
+                    'type': 'select',
+                    'columns': cols,
+                    'rows': rows,
+                    'truncated': has_more
+                })
+            else:
+                if db_type != 'oracle':
+                    conn.commit()
+                results.append({'type': 'dml', 'verb': verb, 'rowcount': cur.rowcount or 0})
+
+        if db_type == 'oracle':
+            conn.commit()
 
         conn.close()
-        elapsed = round((time_lib.time()-t0)*1000)
-        return jsonify({'ok':True,'results':results,'elapsed':elapsed})
+        elapsed = round((time_lib.time() - t0) * 1000)
+        return jsonify({'ok': True, 'results': results, 'elapsed': elapsed})
 
     except Exception as e:
         if conn:
             try: conn.close()
             except: pass
-        return jsonify({'ok':False,'error':str(e),'elapsed':round((time_lib.time()-t0)*1000)})
+        elapsed = round((time_lib.time() - t0) * 1000)
+        return jsonify({'ok': False, 'error': str(e), 'elapsed': elapsed})
 
 
 # ── POSTMAN SAVED CONFIGS ────────────────────────────────────────────────────
